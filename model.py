@@ -20,4 +20,4 @@ class Classifier(nn.Module):
         self.fc3 = nn.Linear(84, 10)
 
     def forward(self, x):
-        self.
+        print("edited in vscode")
