@@ -20,4 +20,25 @@ class Classifier(nn.Module):
         self.fc3 = nn.Linear(84, 10)
 
     def forward(self, x):
-        print("edited in vscode")
+        x = self.pool(F.relu(self.conv1(x)))
+        x = self.pool(F.relu(self.conv2(x)))
+        x = x.view(-1, 16*5*5)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+        return x
+
+class Discriminator(nn.Module):
+    def __init__(self):
+        super(Discriminator, self).__init__()
+
+    def forward(self, x):
+        
+
+class AutoEncoder(nn.Module):
+    # convolutional autoencoder as feature extractor
+    
+    def __init__(self):
+        super(AutoEncoder, self).__init__()
+
+    def forward(self, x):
