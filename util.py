@@ -65,7 +65,7 @@ def process_usps(usps_path="/home/neo/dataset/usps/"):
     #usps_train_data*=255.0
     #usps_test_data*=255.0
 
-    training_set = (usps_train_data, usps_test_data)
+    training_set = (usps_train_data, usps_train_label)
     testing_set = (usps_test_data, usps_test_label)
 
     # save usps data with (data, label)
@@ -74,3 +74,5 @@ def process_usps(usps_path="/home/neo/dataset/usps/"):
 
     with open(os.path.join(usps_path, "usps_pytorch_test"), "wb") as f:
         torch.save(testing_set, f)
+
+    print("Done")
