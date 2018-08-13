@@ -1,11 +1,13 @@
 import torch
 from torch.utils.data import Dataset
-import torchvision.datasets as datasets
+from torchvision import datasets, transforms
+import torchvision
 import pickle
 import os
 import matplotlib.pyplot as plt
 from PIL import Image
 import numpy as np
+
 
 class MNISTM(Dataset):
 
@@ -24,7 +26,7 @@ class MNISTM(Dataset):
                 os.path.join(self.root, "mnistm_pytorch_test"))
 
     def __getitem__(self, index):
-        
+
         data, label = self.data[index], self.label[index]
         data = Image.fromarray(data.squeeze().numpy(), mode="RGB")
 
@@ -38,11 +40,12 @@ class MNISTM(Dataset):
 
     def __len__(self):
         # Return size of dataset
-       return len(self.data)
+        return len(self.data)
+
 
 class USPS(Dataset):
 
-    def __init__(self, root="/home/neo/dataset/usps/", train=True, transform =None, target_transform=None):
+    def __init__(self, root="/home/neo/dataset/usps/", train=True, transform=None, target_transform=None):
         super(USPS, self).__init__()
         self.root = root
         self.transform = transform
@@ -50,35 +53,43 @@ class USPS(Dataset):
         self.train = train
 
         if self.train:
-            self.data , self.label = torch.load(os.path.join(self.root, "usps_pytorch_train"))
+            self.data, self.label = torch.load(
+                os.path.join(self.root, "usps_pytorch_train"))
         else:
-            self.data, self.label = torch.load(os.path.join(self.root, "usps_pytorch_test"))
+            self.data, self.label = torch.load(
+                os.path.join(self.root, "usps_pytorch_test"))
 
     def __getitem__(self, index):
         data, label = self.data[index], self.label[index]
-        data = Image.fromarray(data,mode="RGB")
+        data = Image.fromarray(data, mode="RGB")
 
         if self.transform is not None:
             data = self.transform(data)
 
         if self.target_transform is not None:
             label = self.target_transform(label)
-        
+
         return data, label
 
     def __len__(self):
         return len(self.label)
 
+# Data loader for caltech dataset
+caltech_root = "/home/neo/dataset/caltech/"
+Caltech = torchvision.datasets.ImageFolder(caltech_root,  
+transform=transforms.Compose([
+    transforms.Scale(120),
+    transforms.CenterCrop(100),
+    transforms.ToTensor()]))
+caltech_loader = torch.utils.data.DataLoader(Caltech, batch_size=100, shuffle=True, num_workers=4)
 
-'''
-import torchvision.transforms as transforms
-toy = torch.utils.data.DataLoader(USPS(transform=transforms.Compose([
-                       transforms.Resize((28,28)),
-                       transforms.ToTensor(),
-                       transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-                   ])),batch_size=1, shuffle=True)
 
-for index, (data, label) in enumerate (toy):
-    #print(data)
-    print(label)
-'''
+# Dataset loader for office dataset
+office_root = "/home/neo/dataset/office/"
+Office = torchvision.datasets.ImageFolder(office_root, 
+transform=transforms.Compose([
+    transforms.Scale(120),
+    transforms.CenterCrop(100),
+    transforms.ToTensor()]))
+
+office_loader = torch.utils.data.DataLoader(Office, batch_size=100, shuffle=True, num_workers=4)

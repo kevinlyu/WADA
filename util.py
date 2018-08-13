@@ -14,9 +14,10 @@ mnistm pickle file: https://github.com/VanushVaswani/keras_mnistm/releases/downl
 '''
 
 '''
-image after preprocess is in CHW(channel, height, width) format for pytorch use. If you want to plot 
+image after preprocess is in CHW (channel, height, width) format for pytorch use. If you want to plot 
 these images, convert them into HWC first
 '''
+
 
 def process_mnistm(mnistm_path="/home/neo/dataset/mnistm/", mnist_path="/home/neo/dataset/mnist/"):
     with open(os.path.join(mnistm_path, "mnistm.pkl"), "rb") as f:
@@ -46,9 +47,6 @@ def process_mnistm(mnistm_path="/home/neo/dataset/mnistm/", mnist_path="/home/ne
     print("Done!")
 
 
-import matplotlib.pyplot as plt
-
-
 def process_usps(usps_path="/home/neo/dataset/usps/"):
 
     with h5py.File(os.path.join(usps_path, "usps.h5"), "r") as f:
@@ -62,8 +60,8 @@ def process_usps(usps_path="/home/neo/dataset/usps/"):
     usps_train_data = np.reshape(usps_train_data, (-1, 16, 16))
     usps_test_data = np.reshape(usps_test_data, (-1, 16, 16))
 
-    #usps_train_data*=255.0
-    #usps_test_data*=255.0
+    # usps_train_data*=255.0
+    # usps_test_data*=255.0
 
     training_set = (usps_train_data, usps_train_label)
     testing_set = (usps_test_data, usps_test_label)
