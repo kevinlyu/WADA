@@ -78,3 +78,17 @@ def process_usps(usps_path="/home/neo/dataset/usps/"):
         torch.save(testing_set, f)
 
     print("Done")
+
+
+def weight_init(m):
+    '''
+    Customize initialization methods for specific layer
+    '''
+    classname = m.__class__.__name__
+
+    if classname.find("Conv") != -1:
+        torch.nn.init.xavier_normal(m.weight.data)
+        torch.nn.init.xavier_normal(m.bias.data)
+    elif classname.find("BatchNorm") != -1:
+        torch.nn.init.xavier_normal(m.weight.data)
+        torch.nn.init.xavier_normal(m.bias.data)

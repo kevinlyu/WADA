@@ -8,6 +8,7 @@ from torchvision import transforms
 
 import os
 
+
 class GradReverse(torch.autograd.Function):
 
     @staticmethod
@@ -32,6 +33,7 @@ class Classifier(nn.Module):
     '''
     Task Classifier
     '''
+
     def __init__(self):
         super(Classifier, self).__init__()
         self.conv1 = nn.Conv2d(3, 6, 5)
@@ -50,6 +52,7 @@ class Classifier(nn.Module):
         x = self.fc3(x)
         return x
 
+
 '''
 
 class Discriminator(nn.Module):
@@ -60,8 +63,6 @@ class Discriminator(nn.Module):
 
     def forward(self, x):
 '''
-
-
 
 
 class Extractor(nn.Module):
@@ -77,14 +78,14 @@ class Extractor(nn.Module):
         '''
         # encoder
         self.encoder = nn.Sequential()
-        self.encoder.add_module("conv1", nn.Conv2d(3, 32, kernel_size=5, stride=3, padding=1))
+        self.encoder.add_module("conv1", nn.Conv2d(
+            3, 32, kernel_size=5, stride=3, padding=1))
         self.encoder.add_module("bn1", nn.BatchNorm2d(32))
         self.encoder.add_module("pool1", nn.MaxPool2d(kernel_size=2))
         self.encoder.add_module("relu1", nn.ReLU())
-
         self.encoder.add_module("conv2", nn.Conv2d(32, 64, kernel_size=5))
         self.encoder.add_module("bn2", nn.BatchNorm2d(64))
-        #self.encoder.add_module("drop2", nn.Dropout2d())
+        # self.encoder.add_module("drop2", nn.Dropout2d())
         self.encoder.add_module("pool2", nn.MaxPool2d(kernel_size=2))
         self.encoder.add_module("relu2", nn.ReLU())
 

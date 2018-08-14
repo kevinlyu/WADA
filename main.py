@@ -8,4 +8,3 @@ from torchvision import datasets, transforms
 
 import util
 
-a = "test"
