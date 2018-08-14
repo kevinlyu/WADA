@@ -1,8 +1,11 @@
+import os
+
 import torch
 import torchvision
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
-from torchvision import transforms, datasets
+from torchvision import datasets, transforms
 
-import os
 import util
+
+a = "test"

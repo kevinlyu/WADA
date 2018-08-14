@@ -1,17 +1,15 @@
-import cv2
+'''
+Utilities used in the project
+'''
+
+import os
+import pickle
+
+import h5py
 import numpy as np
 import torch
-from torch.utils.data import Dataset
-from torchvision import datasets, transforms
-import pickle
-import gzip
-import os
-import h5py
-
-'''
-reference: https://github.com/eriklindernoren/PyTorch-GAN/blob/master/implementations/pixelda/mnistm.py
-mnistm pickle file: https://github.com/VanushVaswani/keras_mnistm/releases/download/1.0/keras_mnistm.pkl.gz
-'''
+# from torch.utils.data import Dataset
+from torchvision import datasets
 
 '''
 image after preprocess is in CHW (channel, height, width) format for pytorch use. If you want to plot 
@@ -20,6 +18,10 @@ these images, convert them into HWC first
 
 
 def process_mnistm(mnistm_path="/home/neo/dataset/mnistm/", mnist_path="/home/neo/dataset/mnist/"):
+    '''
+    reference: https://github.com/eriklindernoren/PyTorch-GAN/blob/master/implementations/pixelda/mnistm.py
+    mnistm pickle file: https://github.com/VanushVaswani/keras_mnistm/releases/download/1.0/keras_mnistm.pkl.gz
+    '''
     with open(os.path.join(mnistm_path, "mnistm.pkl"), "rb") as f:
         mnistm_data = pickle.load(f, encoding="bytes")
 
@@ -48,7 +50,9 @@ def process_mnistm(mnistm_path="/home/neo/dataset/mnistm/", mnist_path="/home/ne
 
 
 def process_usps(usps_path="/home/neo/dataset/usps/"):
-
+    '''
+    download .h5 format usps dataset from Kaggle site 
+    '''
     with h5py.File(os.path.join(usps_path, "usps.h5"), "r") as f:
         train = f.get("train")
         usps_train_data = train.get("data")[:]

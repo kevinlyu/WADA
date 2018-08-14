@@ -20,11 +20,18 @@ class GradReverse(torch.autograd.Function):
         grad_output = grad_output.neg()*ctx.constant
         return grad_output, None
 
+    # pylint raise E0213 warning here
     def grad_reverse(x, constant):
+        """
+        Extension of grad reverse layer
+        """
         return GradReverse.apply(x, constant)
 
 
 class Classifier(nn.Module):
+    '''
+    Task Classifier
+    '''
     def __init__(self):
         super(Classifier, self).__init__()
         self.conv1 = nn.Conv2d(3, 6, 5)
@@ -58,11 +65,14 @@ class Discriminator(nn.Module):
 
 
 class Extractor(nn.Module):
-    # convolutional autoencoder as feature extractor
+    '''
+    convolutional autoencoder as feature extractor
+    '''
 
     def __init__(self):
         super(Extractor, self).__init__()
         '''
+        prototype of Conv2D()
         class torch.nn.Conv2d(in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, bias=True)[
         '''
         # encoder

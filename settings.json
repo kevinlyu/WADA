@@ -1,8 +1,12 @@
 {
-	//User define setting for vscode
     "editor.fontSize": 22,
     "python.venvPath": "~/venvs/tf19/bin/python",
-    "python.linting.pylintArgs": ["--errors-only",  "--extension-pkg-whitelist=torch"]
+    "python.linting.pylintArgs": [
+        //"--errors-only",
+        "--extension-pkg-whitelist=torch, numpy",
+        "--disable=E1101, W0221"
+    ],
+    "workbench.colorTheme": "One Dark Pro"
     //"python.formatting.provider": "autopep8"
     //"python.formatting.provider": "yapf"
 }
