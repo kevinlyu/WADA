@@ -48,16 +48,22 @@ class Classifier(nn.Module):
         return x
 
 
-'''
-
 class Discriminator(nn.Module):
+    '''
+    Domain discrimiator
+    '''
+
     def __init__(self):
         super(Discriminator, self).__init__()
-        self.layers = nn.Sequential()
-        self.layers.add_module("conv1", nn.Conv2d())
+        self.fc1 = nn.Linear(50*4*4, 100)
+        self.bn1 = nn.BatchNorm1d(100)
+        self.fc2 = nn.Linear(100, 2)
 
-    def forward(self, x):
-'''
+    def forward(self, x, constant):
+        x = GradReverse.grad_reverse(x, constant)
+        logits = F.relu(self.bn1(self.fc1(x)))
+        logits = F.log_softmax(self.fc2(logits), 1)
+        return logits
 
 
 class Extractor(nn.Module):
@@ -73,31 +79,30 @@ class Extractor(nn.Module):
         '''
         # encoder
         self.encoder = nn.Sequential()
-        self.encoder.add_module("conv1", nn.Conv2d(
-            3, 32, kernel_size=5, stride=3, padding=1))
+        self.encoder.add_module("conv1", nn.Conv2d(1, 32, kernel_size=3, stride=3, padding=1))
         self.encoder.add_module("bn1", nn.BatchNorm2d(32))
-        self.encoder.add_module("pool1", nn.MaxPool2d(kernel_size=2))
-        self.encoder.add_module("relu1", nn.ReLU())
-        self.encoder.add_module("conv2", nn.Conv2d(32, 64, kernel_size=5))
+        self.encoder.add_module("pool1", nn.MaxPool2d(2, stride=2))
+        self.encoder.add_module("relu1", nn.ReLU(True))
+        self.encoder.add_module("conv2", nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1))
         self.encoder.add_module("bn2", nn.BatchNorm2d(64))
-        # self.encoder.add_module("drop2", nn.Dropout2d())
-        self.encoder.add_module("pool2", nn.MaxPool2d(kernel_size=2))
-        self.encoder.add_module("relu2", nn.ReLU())
+        self.encoder.add_module("drop2", nn.Dropout2d())
+        self.encoder.add_module("pool2", nn.MaxPool2d(2, stride=1))
+        self.encoder.add_module("relu2", nn.ReLU(True))
 
         # decoder
         self.decoder = nn.Sequential()
         self.decoder.add_module(
-            "deconv1", nn.ConvTranspose2d(64, 32, kernel_size=5))
+            "deconv1", nn.ConvTranspose2d(64, 32, kernel_size=3, stride=2))
         self.decoder.add_module("relu1", nn.ReLU())
         self.decoder.add_module(
-            "deconv2", nn.ConvTranspose2d(32, 16, kernel_size=5))
+            "deconv2", nn.ConvTranspose2d(32, 16, kernel_size=5, stride=3, padding=1))
         self.decoder.add_module("relu2", nn.ReLU())
         self.decoder.add_module(
-            "deconv3", nn.ConvTranspose2d(16, 3, kernel_size=3))
+            "deconv3", nn.ConvTranspose2d(16, 1, kernel_size=2, stride=2, padding=1))
         self.decoder.add_module("output", nn.Sigmoid())
 
     def forward(self, x):
-        x = x.expand(x.data.shape[0], 3, 28, 28)
+        #x = x.expand(x.data.shape[0], 3, 28, 28)
         z = self.encoder(x)
         x = self.decoder(z)
         # return reconstructed data and latent feature

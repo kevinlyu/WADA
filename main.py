@@ -1,14 +1,13 @@
 import os
-
 import torch
+import torch.nn as nn
 import torchvision
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 from torchvision.utils import save_image
 import util
-
-from model import *
+import model
 
 
 def to_img(x):
@@ -50,7 +49,8 @@ for epoch in range(total_epoch):
 
         print('epoch [{}/{}], loss:{:.4f}'
               .format(epoch+1, total_epoch, loss.data[0]))
+    '''
     if epoch % 10 == 0:
         pic = to_img(img_gen.cpu().data)
         save_image(pic, '../dc_img/image_{}.png'.format(epoch))
-
+    '''
