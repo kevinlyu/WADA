@@ -1,3 +1,6 @@
 test.py
 *.ipynb
 *.pyc
+tags
+test/*
+SWAE/*
