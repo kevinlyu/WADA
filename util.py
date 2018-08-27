@@ -92,3 +92,9 @@ def weight_init(m):
     elif classname.find("BatchNorm") != -1:
         torch.nn.init.xavier_normal(m.weight.data)
         torch.nn.init.xavier_normal(m.bias.data)
+
+def set_requires_gradient(model, resuires_grad=True):
+    for param in model.parameters():
+        param.requires_grad = resuires_grad
+
+    
