@@ -18,7 +18,7 @@ def get_theta(embedding_dim, num_samples=50):
 
 
 def random_uniform(batch_size):
-    z = 2*(np.random.uniform(size=(batch_size, 500))-0.5)
+    z = 2*(np.random.uniform(size=(batch_size, 10))-0.5)
     return torch.from_numpy(z).type(torch.FloatTensor)
 
 
@@ -134,7 +134,7 @@ class Autoencoder(nn.Module):
 
         # encoder part
         self.encoder = nn.Sequential(
-            nn. Conv2d(1, self.in_channels*1, kernel_size=3, padding=1),
+            nn. Conv2d(3, self.in_channels*1, kernel_size=3, padding=1),
             nn.LeakyReLU(self.lrelu_slope),
 
             nn.Conv2d(self.in_channels*1, self.in_channels *
@@ -203,7 +203,7 @@ class Autoencoder(nn.Module):
                       2, kernel_size=3, padding=1),
             nn.LeakyReLU(self.lrelu_slope),
 
-            nn.Conv2d(self.in_channels*2, 1, kernel_size=3, padding=1)
+            nn.Conv2d(self.in_channels*2, 3, kernel_size=3, padding=1)
         )
 
     def forward(self, x):
@@ -252,7 +252,7 @@ class Discriminator(nn.Module):
     def __init__(self, in_dim):
         super(Discriminator, self).__init__()
         self.in_dim = in_dim
-        self.fc1 = nn.Linear(1*in_dim*in_dim, 100)
+        self.fc1 = nn.Linear(1*self.in_dim*self.in_dim, 100)
         self.bn1 = nn.BatchNorm1d(100)
         self.fc2 = nn.Linear(100, 2)
 
@@ -264,16 +264,22 @@ class Discriminator(nn.Module):
 
 
 class Relavance(nn.Module):
+
     '''
     Relanvance network to conduct partial transfer
     '''
 
-    def __init__(self):
+    def __init__(self, in_dim):
         super(Relavance, self).__init__()
-
+        self.in_dim = in_dim
+        self.fc1 = nn.Linear(1*self.in_dim*self.in_dim, 100)
+        self.bn1 = nn.BatchNorm1d(100)
+        self.fc2 = nn.Linear(100, 25)
+        self.bn2 = nn.BatchNorm1d(25)
+        self.fc3 = nn.Linear(25, 2)
 
     def foraward(self, x):
-
-    
-    def get_R(x):
-        
+        logits = F.relu(self.bn1(self.fc1(x)))
+        logits = F.relu(self.bn2(self.fc2(logits)))
+        logits = F.softmax (self.fc3(logits))
+        return logits

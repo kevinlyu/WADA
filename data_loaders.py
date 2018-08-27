@@ -12,6 +12,7 @@ class MNISTM(Dataset):
     '''
     Definition of MNISTM dataset
     '''
+
     def __init__(self, root="/home/neo/dataset/mnistm/", train=True, transform=None, target_transform=None):
         super(MNISTM, self).__init__()
         self.root = root
@@ -48,6 +49,7 @@ class USPS(Dataset):
     '''
     Definition of USPS dataset
     '''
+
     def __init__(self, root="/home/neo/dataset/usps/", train=True, transform=None, target_transform=None):
         super(USPS, self).__init__()
         self.root = root
@@ -78,6 +80,17 @@ class USPS(Dataset):
         return len(self.label)
 
 
+# VisDA 2018
+visda_root = "/home/neo/dataset/visda2018/train/"
+Visda = torchvision.datasets.ImageFolder(visda_root, transform=transforms.Compose([
+    transforms.Resize((28,28)),
+    #transforms.CenterCrop(100),
+    transforms.ToTensor()
+]))
+
+visda_loader = torch.utils.data.DataLoader(
+    Visda, batch_size=100, shuffle=True, num_workers=4)
+
 # Data loader for caltech dataset
 caltech_root = "/home/neo/dataset/caltech/"
 Caltech = torchvision.datasets.ImageFolder(caltech_root,
@@ -93,7 +106,7 @@ caltech_loader = torch.utils.data.DataLoader(
 office_root = "/home/neo/dataset/office/"
 Office = torchvision.datasets.ImageFolder(office_root,
                                           transform=transforms.Compose([
-                                              transforms.Scale(120),
+                                              transforms.Resize(120),
                                               transforms.CenterCrop(100),
                                               transforms.ToTensor()]))
 

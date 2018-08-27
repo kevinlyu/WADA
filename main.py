@@ -8,6 +8,7 @@ from torchvision import datasets, transforms
 from torchvision.utils import save_image
 import util
 from model import *
+from data_loaders import *
 
 
 '''
@@ -49,12 +50,12 @@ for epoch in range(total_epoch):
         pic = to_img(img_gen.cpu().data)
         save_image(pic, '../dc_img/image_{}.png'.format(epoch))
     
-'''
+
 mnist = torch.utils.data.DataLoader(datasets.MNIST("./mnist/", train=True, download=True,
                                                    transform=transforms.Compose([
                                                        transforms.ToTensor()
                                                    ])), batch_size=128, shuffle=True)
-
+'''
 ae = Autoencoder().cuda()
 optimizer = torch.optim.Adam(ae.parameters())
 total_epoch = 1
@@ -64,7 +65,7 @@ ae.train()
 
 for epoch in range(total_epoch):
 
-    for index, (img, label) in enumerate(mnist):
+    for index, (img, label) in enumerate(visda_loader):
         img = img.cuda()
         #img = img.expand(img.data.shape[0], 3, 28, 28)
         batch_result = trainer.train(img)
