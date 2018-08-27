@@ -74,7 +74,6 @@ class GradReverse(torch.autograd.Function):
         """
         return GradReverse.apply(x, constant)
 
-
 class SAE:
 
     def __init__(self, autoencoder, optimizer, distribution_fn, num_projections=50, p=2, weight_swd=10):
