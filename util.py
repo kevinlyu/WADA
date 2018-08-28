@@ -93,8 +93,8 @@ def weight_init(m):
         torch.nn.init.xavier_normal(m.weight.data)
         torch.nn.init.xavier_normal(m.bias.data)
 
-def set_requires_gradient(model, resuires_grad=True):
+def set_requires_gradient(model, requires_grad=True):
     for param in model.parameters():
-        param.requires_grad = resuires_grad
+        param.requires_grad = requires_grad
 
     

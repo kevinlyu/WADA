@@ -12,7 +12,11 @@ from data_loaders import *
 
 ''' Parameters '''
 total_epoch = 200
-feature_dim = 10
+feature_dim = 10  # feature dimension
+d_ratio = 3  # training time of discriminator in an iteration
+c_ratio = 1  # training time of classifier in an iteration
+gamma = 10  # parameter for gradient penalty
+total_loss = 0
 
 ''' Model Components '''
 # move all networks to GPU
@@ -64,6 +68,7 @@ for epoch in range(total_epoch):
         size = min((source_data.shape[0], target_data.shape[0]))
         source_data, source_label = source_data[0:size], source_label[0:size]
         target_data, target_label = target_data[0:size], target_label[0:size]
+
         ''' only for mnist data, expand to 3 channels '''
         source_data = source_data.expand(source_data.shape[0], 3, 28, 28)
 
@@ -73,12 +78,51 @@ for epoch in range(total_epoch):
         # print(source_data.shape)
         # print(target_data.shape)
 
-        ''' Train extractor '''
-        set_requires_gradient(source_extractor, resuires_grad=False)
-        set_requires_gradient(target_extractor, resuires_grad=False)
-        set_requires_gradient(discriminator, resuires_grad=True)
+        ''' Train discriminator '''
+        # print("train discriminator")
+        set_requires_gradient(source_extractor, requires_grad=False)
+        set_requires_gradient(target_extractor, requires_grad=False)
+        set_requires_gradient(discriminator, requires_grad=True)
 
         with torch.no_grad():
             source_recon, source_z = source_extractor(source_data)
             target_recon, target_z = target_extractor(target_data)
             #print("source:{} \t target:{}".format(source_recon.shape, target_recon.shape))
+
+        for _ in range(d_ratio):
+
+            gp = gradient_penalty(discriminator, source_z, target_z)
+
+            d_source = discriminator(source_z, 10)
+            d_target = discriminator(target_z, 10)
+
+            ''' Wasserstein-2 distance '''
+            wasserstein_distance = d_source.mean() - d_target.mean()
+
+            ''' Discriminator Loss '''
+            d_loss = -wasserstein_distance + gamma * gp
+
+            discriminator_optimizer.zero_grad()
+            d_loss.backward()
+            discriminator_optimizer.step()
+
+            total_loss += d_loss
+
+        ''' Train classfier '''
+        # print("train classifier")
+        set_requires_gradient(source_extractor, requires_grad=True)
+        set_requires_gradient(target_extractor, requires_grad=True)
+        set_requires_gradient(discriminator, requires_grad=False)
+
+        for _ in range(c_ratio):
+
+            source_recon, source_z = source_extractor(source_data)
+            target_recon, target_z = target_extractor(target_data)
+
+            source_preds = classifier(source_z)
+            c_loss = class_criterion(source_preds, source_label)
+
+            # wasserstein_distance = classifier(source_z).mean() - classifier(target_z).mean()
+            classifier_optimizer.zero_grad()
+            c_loss.backward()
+            classifier_optimizer.step()

@@ -9,6 +9,8 @@ from torch.autograd import grad
 import numpy as np
 import os
 
+feature_dim = 10
+
 
 def get_theta(embedding_dim, num_samples=50):
     theta = [w/np.sqrt((w**2).sum())
@@ -41,13 +43,12 @@ def sliced_wasserstein_distance(encoded_samples, distribution_fn=random_uniform,
 
 
 def gradient_penalty(critic, h_s, h_t):
-    alpha = torch.rand(h_s.size(0), 1).gpu()
+    alpha = torch.rand(h_s.size(0), 1).cuda()
     difference = h_t-h_s
     interpolates = h_s + (alpha * difference)
     # https://github.com/jvanvugt/pytorch-domain-adaptation/blob/master/wdgrl.py
-    interpolates = torch.stack([interpolates, h_s, h_t]).requires_grad()
-
-    preds = critic(interpolates)
+    interpolates = torch.stack([interpolates, h_s, h_t]).requires_grad_()
+    preds = critic(interpolates, h_s.shape[1])
     gradients = grad(preds, interpolates, grad_outputs=torch.ones_like(
         preds), retain_graph=True, create_graph=True)[0]
     gradient_norm = gradients.norm(2, dim=1)
@@ -73,6 +74,7 @@ class GradReverse(torch.autograd.Function):
         Extension of grad reverse layer
         """
         return GradReverse.apply(x, constant)
+
 
 class SAE:
 
@@ -123,7 +125,7 @@ class SAE:
 
 class Autoencoder(nn.Module):
 
-    def __init__(self, in_channels=16, lrelu_slope=0.2, fc_dim=128, encoded_dim=10):
+    def __init__(self, in_channels=16, lrelu_slope=0.2, fc_dim=128, encoded_dim=100):
         super(Autoencoder, self).__init__()
 
         self.in_channels = in_channels
@@ -280,5 +282,5 @@ class Relavance(nn.Module):
     def foraward(self, x):
         logits = F.relu(self.bn1(self.fc1(x)))
         logits = F.relu(self.bn2(self.fc2(logits)))
-        logits = F.softmax (self.fc3(logits))
+        logits = F.softmax(self.fc3(logits))
         return logits
