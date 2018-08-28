@@ -16,7 +16,6 @@ feature_dim = 10  # feature dimension
 d_ratio = 3  # training time of discriminator in an iteration
 c_ratio = 1  # training time of classifier in an iteration
 gamma = 10  # parameter for gradient penalty
-total_loss = 0
 
 ''' Model Components '''
 # move all networks to GPU
@@ -31,11 +30,13 @@ discriminator = Discriminator(feature_dim).cuda()
 class_criterion = nn.CrossEntropyLoss()
 # Wasserstein distance should be defined by self, to be continue
 domain_criterion = nn.NLLLoss()
+relater_criterion = nn.BCELoss()
 
 ''' Optimizers '''
 extractor_optimizer = torch.optim.Adam([{"params": source_extractor.parameters()},
                                         {"params": target_extractor.parameters()},
-                                        {"params": relater.parameters()}], lr=1e-3)
+                                        {"params": relater.parameters()},
+                                        {"params": classifier.parameters()}], lr=1e-3)
 
 classifier_optimizer = torch.optim.SGD(
     classifier.parameters(), lr=1e-3, momentum=0.9)
@@ -59,8 +60,9 @@ target_loader = torch.utils.data.DataLoader(MNISTM(
 ''' Training Stage '''
 
 for epoch in range(total_epoch):
-    for index, (source, target) in enumerate(zip(source_loader, target_loader)):
 
+    for index, (source, target) in enumerate(zip(source_loader, target_loader)):
+        total_loss = 0
         source_data, source_label = source
         target_data, target_label = target
 
@@ -78,8 +80,31 @@ for epoch in range(total_epoch):
         # print(source_data.shape)
         # print(target_data.shape)
 
+        ''' Train relater '''
+        print("train relater")
+        set_requires_gradient(relater, requires_grad=True)
+        set_requires_gradient(source_extractor, requires_grad=True)
+        set_requires_gradient(target_extractor, requires_grad=True)
+        set_requires_gradient(discriminator, requires_grad=False)
+
+        source_recon, source_z = source_extractor(source_data)
+        target_recon, target_z = target_extractor(target_data)
+
+        src_tag = 0
+        tar_tag = 1
+
+        '''source loss'''
+        tags = torch.FloatTensor(source_z.shape[0]).fill_(src_tag)
+        src_pred = relater(source_z)
+        src_loss = relater_criterion(src_pred, tags)
+
+        '''target loss'''
+        tags = torch.FloatTensor(target_z.shape[0]).fill_(tar_tag)
+        tar_pred = relater(target_z)
+        tar_loss = relater_criterion(tar_pred, tags)
+
         ''' Train discriminator '''
-        # print("train discriminator")
+        print("train discriminator")
         set_requires_gradient(source_extractor, requires_grad=False)
         set_requires_gradient(target_extractor, requires_grad=False)
         set_requires_gradient(discriminator, requires_grad=True)
@@ -109,7 +134,7 @@ for epoch in range(total_epoch):
             total_loss += d_loss
 
         ''' Train classfier '''
-        # print("train classifier")
+        print("train classifier")
         set_requires_gradient(source_extractor, requires_grad=True)
         set_requires_gradient(target_extractor, requires_grad=True)
         set_requires_gradient(discriminator, requires_grad=False)
@@ -121,8 +146,13 @@ for epoch in range(total_epoch):
 
             source_preds = classifier(source_z)
             c_loss = class_criterion(source_preds, source_label)
-
+            total_loss += c_loss
             # wasserstein_distance = classifier(source_z).mean() - classifier(target_z).mean()
-            classifier_optimizer.zero_grad()
+
+            extractor_optimizer.zero_grad()
             c_loss.backward()
-            classifier_optimizer.step()
+            extractor_optimizer.step()
+
+        if index % 50 == 0:
+            print("[Epoch{:3d}] ==> Total loss: {:.4f} \t Class loss: {:.4f} \t Domain loss: {:.4f}".format(
+                epoch, total_loss, c_loss, d_loss))
