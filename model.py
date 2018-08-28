@@ -277,10 +277,10 @@ class Relavance(nn.Module):
         self.bn1 = nn.BatchNorm1d(100)
         self.fc2 = nn.Linear(100, 25)
         self.bn2 = nn.BatchNorm1d(25)
-        self.fc3 = nn.Linear(25, 2)
+        self.fc3 = nn.Linear(25, 1)
 
-    def foraward(self, x):
+    def forward(self, x):
         logits = F.relu(self.bn1(self.fc1(x)))
         logits = F.relu(self.bn2(self.fc2(logits)))
-        logits = F.softmax(self.fc3(logits))
+        logits = F.sigmoid(self.fc3(logits))
         return logits
