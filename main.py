@@ -11,7 +11,7 @@ from model import *
 from data_loaders import *
 
 ''' Parameters '''
-total_epoch = 200
+total_epoch = 50
 feature_dim = 10  # feature dimension
 d_ratio = 3  # training time of discriminator in an iteration
 c_ratio = 1  # training time of classifier in an iteration
@@ -35,7 +35,7 @@ relater_criterion = nn.BCELoss()
 ''' Optimizers '''
 extractor_optimizer = torch.optim.Adam([{"params": source_extractor.parameters()},
                                         {"params": target_extractor.parameters()},
-                                        {"params": classifier.parameters()}], lr=1e-3)
+                                        {"params": classifier.parameters()}], lr=1e-4)
 relater_optimizer = torch.optim.Adam(relater.parameters(), lr=1e-3)
 
 

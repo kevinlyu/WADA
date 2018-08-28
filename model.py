@@ -46,7 +46,10 @@ def gradient_penalty(critic, h_s, h_t):
     alpha = torch.rand(h_s.size(0), 1).cuda()
     difference = h_t-h_s
     interpolates = h_s + (alpha * difference)
-    # https://github.com/jvanvugt/pytorch-domain-adaptation/blob/master/wdgrl.py
+    '''
+    Reference
+    https://github.com/jvanvugt/pytorch-domain-adaptation/blob/master/wdgrl.py
+    '''
     interpolates = torch.stack([interpolates, h_s, h_t]).requires_grad_()
     preds = critic(interpolates, h_s.shape[1])
     gradients = grad(preds, interpolates, grad_outputs=torch.ones_like(
