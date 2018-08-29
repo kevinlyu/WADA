@@ -10,7 +10,7 @@ import numpy as np
 import os
 
 feature_dim = 10
-
+random_z_size=100
 
 def get_theta(embedding_dim, num_samples=50):
     theta = [w/np.sqrt((w**2).sum())
@@ -20,7 +20,7 @@ def get_theta(embedding_dim, num_samples=50):
 
 
 def random_uniform(batch_size):
-    z = 2*(np.random.uniform(size=(batch_size, 10))-0.5)
+    z = 2*(np.random.uniform(size=(batch_size, random_z_size))-0.5)
     return torch.from_numpy(z).type(torch.FloatTensor)
 
 
@@ -233,17 +233,21 @@ class Classifier(nn.Module):
 
         self.in_dim = in_dim
 
-        self.fc1 = nn.Linear(1*self.in_dim*self.in_dim, 50)
-        self.bn1 = nn.BatchNorm1d(50)
-        self.fc2 = nn.Linear(50, 50)
-        self.bn2 = nn.BatchNorm1d(50)
-        self.fc3 = nn.Linear(50, 10)
+        self.fc1 = nn.Linear(1*self.in_dim*self.in_dim, 100)
+        self.bn1 = nn.BatchNorm1d(100)
+        self.fc2 = nn.Linear(100, 75)
+        self.bn2 = nn.BatchNorm1d(75)
+        self.fc3 = nn.Linear(75, 50)
+        self.bn3 = nn.BatchNorm1d(50)
+        self.fc4 = nn.Linear(50, 10)
 
     def forward(self, x):
         logits = F.relu(self.bn1(self.fc1(x)))
         logits = self.fc2(F.dropout(logits))
         logits = F.relu(self.bn2(logits))
-        logits = self.fc3(logits)
+        logits = self.fc3(F.dropout(logits))
+        logits = F.relu(self.bn3(logits))
+        logits = self.fc4(logits)
 
         return F.softmax(logits, 1)
 
