@@ -282,12 +282,20 @@ class Relavance(nn.Module):
         self.in_dim = in_dim
         self.fc1 = nn.Linear(1*self.in_dim*self.in_dim, 100)
         self.bn1 = nn.BatchNorm1d(100)
-        self.fc2 = nn.Linear(100, 25)
-        self.bn2 = nn.BatchNorm1d(25)
-        self.fc3 = nn.Linear(25, 1)
+        self.fc2 = nn.Linear(100, 75)
+        self.bn2 = nn.BatchNorm1d(75)
+        self.fc3 = nn.Linear(75, 50)
+        self.bn3 = nn.BatchNorm1d(50)
+        self.fc4 = nn.Linear(50, 25)
+        self.bn4 = nn.BatchNorm1d(25)
+        self.fc5 = nn.Linear(25, 1)
 
     def forward(self, x):
         logits = F.relu(self.bn1(self.fc1(x)))
         logits = F.relu(self.bn2(self.fc2(logits)))
-        logits = F.sigmoid(self.fc3(logits))
+        logits = F.relu(self.bn3(self.fc3(logits)))
+        logits = F.relu(self.bn4(self.fc4(logits)))
+        logits = F.sigmoid(self.fc5(logits))
+        logits = F.dropout(logits)
+
         return logits

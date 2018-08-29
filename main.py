@@ -46,7 +46,7 @@ r_optimizer = torch.optim.Adam(relater.parameters(), lr=1e-3)
 c_optimizer = torch.optim.SGD(
     classifier.parameters(), lr=1e-3, momentum=0.9)
 '''
-d_optimizer = torch.optim.Adam(discriminator.parameters(), lr=1e-4)
+d_optimizer = torch.optim.Adam(discriminator.parameters(), lr=1e-6)
 
 
 ''' Dataloaders '''
@@ -107,6 +107,7 @@ for epoch in range(total_epoch):
         pred_src = classifier(source_z)
         c_loss = class_criterion(pred_src, source_label)
         loss = l1_src+l1_tar+bce_src+bce_tar+w2_src+w2_tar+wasserstein_z+c_loss
+        #loss = l1_src+l1_tar+bce_src+bce_tar+w2_src+w2_tar+c_loss
         loss.backward()
         c_optimizer.step()
         '''
@@ -138,7 +139,7 @@ for epoch in range(total_epoch):
         tar_pred = relater(target_z.detach())
         tar_loss = relater_criterion(tar_pred, tar_tag)
 
-        r_loss = src_loss + tar_loss
+        r_loss = 0.5*(src_loss + tar_loss)
         r_loss.backward()
         r_optimizer.step()
 
@@ -176,5 +177,11 @@ for epoch in range(total_epoch):
                 "l1_src: {:.4f} \t l1_tar: {:.4f} \t bce_src: {:.4f} \t bce_tar: {:.4f} \t w2_src: {:.4f} \t w2_tar: {:.4f} \t, w_z: {:.4f} \t".format(l1_src, l1_tar, bce_src, bce_tar, w2_src, w2_tar, wasserstein_z))
             '''
             #print("c_loss: {:.4f} \t accuracy: {:.2f}".format(c_loss, accu))
-            print("c_loss: {:.4f} \t r_loss: {:.4f} \t d_loss: {:.4f}".format(
+
+            print("\n")
+            print("R(src) {:.2f}".format(src_pred.mean()))
+            print("R(tar) {:.2f}".format(tar_pred.mean()))
+            print("c_loss: {:.4f}\tr_loss: {:.4f}\td_loss: {:.4f}".format(
                 c_loss, r_loss, d_loss))
+
+            #print("R(src): {:.4f}\t max: {:.4f}\t min: {:.4f}".format(test, torch.max(test), torch.min(test)))
