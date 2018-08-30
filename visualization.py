@@ -3,34 +3,91 @@ import numpy as np
 import time
 import torch
 import matplotlib.pyplot as plt
-import scipy
+from matplotlib.pyplot import cm
+from matplotlib.ticker import NullFormatter
+import scipy.io as sio
+import os
 
-def save_feature_to_mat(feature, label):
-    ''' save (feature, label) to .mat format '''
+
+def save_feature_to_mat(embedding, label, path="./mat/", dim):
+    ''' save (embedding, label) to .mat format '''
     ''' [Optional] use Matlab to plot TSNE result '''
 
+    try:
+        os.stat(path)
+    except:
+        os.mkdir(path)
 
-def plot_tsne(data, label, domain):
+    if dim == 2:
+        sio.savemat(os.path.join(path, "feature_2D.mat"), {
+                    "dim0": embedding[:, 0], "dim1": embedding[:, 1]})
+
+    elif dim == 3:
+        sio.savemat(os.path.join(path, "feature_2D.mat"), {
+                    "dim0": embedding[:, 0], "dim1": embedding[:, 1], "dim2": embedding[:, 2]})
+
+    print(".mat file saved.")
 
 
-def visualize(source_data, target_data, source_label, target_label, domain, title="TSNE", img_name="TSNE.png"):
+def plot_tsne(embedding, label, dim, num_classes=10, img_name="tsne.pdf"):
+    ''' Normalize embedding data '''
+    embedding_max, embedding_min = np.max(embedding, 0), np.min(embedding, 0)
+    embedding = (embedding-embedding_min)/(embedding_max-embedding_min)
+
+    print("Plotting t-SNE")
+
+    if dim == 3:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection="3d")
+        colors = cm.rainbow(np.linspace(0.0, 1.0, num_classes))
+
+        xx = embedding[:, 0]
+        yy = embedding[:, 1]
+        zz = embedding[:, 2]
+
+        for i in range(num_classes):
+            ax.scatter(xx[label == i], yy[label == i],
+                       zz[label == i], color=colors[i], s=10)
+
+        ax.xaxis.set_major_formatter(NullFormatter())
+        ax.yaxis.set_major_formatter(NullFormatter())
+        ax.zaxis.set_major_formatter(NullFormatter())
+        plt.axis('tight')
+        plt.legend(loc='best', scatterpoints=1, fontsize=5)
+        plt.savefig(img_name, format='pdf', dpi=600)
+        plt.show()
+
+    elif dim == 2:
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        colors = cm.rainbow(np.linspace(0.0, 1.0, num_classes))
+
+        xx = embedding[:, 0]
+        yy = embedding[:, 1]
+
+        for i in range(num_classes):
+            ax.scatter(xx[label == i], yy[label == i], color=colors[i], s=10)
+
+        ax.xaxis.set_major_formatter(NullFormatter())
+        ax.yaxis.set_major_formatter(NullFormatter())
+        plt.axis('tight')
+        plt.legend(loc='best', scatterpoints=1, fontsize=5)
+        plt.savefig(img_name, format='pdf', dpi=600)
+        plt.show()
+
+
+def visualize(data, label, dim=2, num_classes=10, title="TSNE", img_name="TSNE.png"):
     ''' Vsualize the scatter of t-SNE dimension reduction'''
 
     print("t-SNE processing")
     start_time = time.time()
 
-    tsne = TSNE(n_components=2, verbose=1, perplexity=40, n_iter=300)
-
-    ''' Concatenate all data / label of two domains'''
-    data = np.concatenate(source_data, target_data)
-    label = np.concatenate(source_label, target_label)
-
-    ''' domain tags, 0 for source , 1 for target '''
-    source_tag = torch.ones(source_data.size(0))
-    target_tag = torch.zeros(target_data.size(0))
-    tag = np.concatenate(source_tag, target_tag)
+    tsne = TSNE(n_components=dim, verbose=1,
+                init="pca", perplexity=40, n_iter=300)
 
     embedding = tsne.fit_transform(data, label)
 
     print("t-SNE used: {} seconds".format(time.time()-start_time))
-    plot_tsne(data, label, tag)
+
+    plot_tsne(embedding, label, dim, num_classes, img_name)

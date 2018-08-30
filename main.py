@@ -9,6 +9,7 @@ from torchvision.utils import save_image
 from util import *
 from model import *
 from data_loaders import *
+from visualization import *
 
 ''' Parameters '''
 total_epoch = 50
