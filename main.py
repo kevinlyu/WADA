@@ -12,6 +12,7 @@ from data_loaders import *
 from visualization import *
 
 ''' Parameters '''
+batch_size = 100
 total_epoch = 20
 feature_dim = 10  # feature dimension, output size of feature extractor
 d_ratio = 3  # training time of discriminator in an iteration
@@ -55,13 +56,13 @@ source_loader = torch.utils.data.DataLoader(datasets.MNIST(
     "../datasetmnist/", train=True, download=True,
     transform=transforms.Compose([
         transforms.ToTensor()
-    ])), batch_size=100, shuffle=True)
+    ])), batch_size=batch_size, shuffle=True)
 
 target_loader = torch.utils.data.DataLoader(MNISTM(
     transform=transforms.Compose([
         transforms.Resize(28),
         transforms.ToTensor()
-    ])), batch_size=100, shuffle=True)
+    ])), batch_size=batch_size, shuffle=True)
 
 
 ''' Training Stage '''
@@ -188,7 +189,16 @@ for epoch in range(total_epoch):
             '''
             print("[Epoch{:3d}] ==> C_loss: {:.4f}\tR_loss: {:.4f}\tD_loss: {:.4f}".format(epoch,
                                                                                            c_loss, r_loss, d_loss))
-''' concatenate source and target domain data, then plot t-SNE embedding'''
-data = np.concatenate(source_data.numpy(), target_data.numpy())
-label = np.concatenate(source_label.numpy(), target_label.numpy())
+
+
+source_z = source_z.cpu()
+target_z = target_z.cpu()
+source_label = source_label.cpu()
+target_label = target_label.cpu()
+
+''' Concatenate source and target domain data, then plot t-SNE embedding'''
+data = np.concatenate((source_z.numpy(), target_z.numpy()))
+label = np.concatenate((source_label.numpy(), target_label.numpy()))
 visualize(data, label, 2, 10)
+
+''' Save model parameters '''
