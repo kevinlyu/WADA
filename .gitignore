@@ -5,3 +5,5 @@ tags
 test/*
 SWAE/*
 mnist/*
+TSNE.png
+mat/*
