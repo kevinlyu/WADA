@@ -77,7 +77,7 @@ def plot_tsne(embedding, label, dim, num_classes=10, img_name="tsne.pdf"):
         plt.show()
 
 
-def visualize(data, label, dim=2, num_classes=10, title="TSNE", img_name="TSNE.png"):
+def visualize(data, label, dim, num_classes=10, title="TSNE", img_name="TSNE.png"):
     ''' Vsualize the scatter of t-SNE dimension reduction'''
 
     print("t-SNE processing")
