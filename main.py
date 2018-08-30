@@ -12,10 +12,10 @@ from data_loaders import *
 
 ''' Parameters '''
 total_epoch = 50
-feature_dim = 10  # feature dimension
+feature_dim = 10  # feature dimension, output size of feature extractor
 d_ratio = 3  # training time of discriminator in an iteration
 c_ratio = 1  # training time of classifier in an iteration
-gamma = 0.5  # parameter for gradient penalty
+gamma = 10  # parameter for gradient penalty
 weight_swd = 10.0
 
 ''' Model Components '''
@@ -46,7 +46,7 @@ r_optimizer = torch.optim.Adam(relater.parameters(), lr=1e-3)
 c_optimizer = torch.optim.SGD(
     classifier.parameters(), lr=1e-3, momentum=0.9)
 '''
-d_optimizer = torch.optim.Adam(discriminator.parameters(), lr=1e-6)
+d_optimizer = torch.optim.Adam(discriminator.parameters(), lr=1e-4)
 
 
 ''' Dataloaders '''
@@ -102,21 +102,19 @@ for epoch in range(total_epoch):
         bce_tar = F.binary_cross_entropy(target_recon, target_data)
         w2_src = weight_swd*sliced_wasserstein_distance(source_z).cuda()
         w2_tar = weight_swd*sliced_wasserstein_distance(target_z).cuda()
-        wasserstein_z = source_z.mean() - target_z.mean()
-
+        wasserstein_z = (source_z.mean() - target_z.mean())**2
         pred_src = classifier(source_z)
         c_loss = class_criterion(pred_src, source_label)
-        loss = l1_src+l1_tar+bce_src+bce_tar+w2_src+w2_tar+wasserstein_z+c_loss
+        loss = l1_src+l1_tar+bce_src+bce_tar+w2_src+w2_tar+c_loss+wasserstein_z
         #loss = l1_src+l1_tar+bce_src+bce_tar+w2_src+w2_tar+c_loss
         loss.backward()
         c_optimizer.step()
-        '''
+
         # debug use, show accuracy of classifier
         _, pred_result = torch.max(pred_src, 1)
         c_loss = class_criterion(pred_src, source_label)
         correct = (pred_result == source_label).sum()
-        accu = 100 * correct / source_data.shape[0]
-        '''
+        accu = 100.0 * correct / source_data.shape[0]
 
         ''' Train Relater '''
         r_optimizer.zero_grad()
@@ -162,8 +160,7 @@ for epoch in range(total_epoch):
         w2_loss = d_src.mean()-d_tar.mean()
         gp = gradient_penalty(discriminator, source_z, target_z)
 
-        d_loss = -w2_loss + gamma * gp
-
+        d_loss = w2_loss + gamma * gp
         d_loss.backward()
         d_optimizer.step()
 
@@ -176,11 +173,13 @@ for epoch in range(total_epoch):
             print(
                 "l1_src: {:.4f} \t l1_tar: {:.4f} \t bce_src: {:.4f} \t bce_tar: {:.4f} \t w2_src: {:.4f} \t w2_tar: {:.4f} \t, w_z: {:.4f} \t".format(l1_src, l1_tar, bce_src, bce_tar, w2_src, w2_tar, wasserstein_z))
             '''
-            #print("c_loss: {:.4f} \t accuracy: {:.2f}".format(c_loss, accu))
 
             print("\n")
-            print("R(src) {:.2f}".format(src_pred.mean()))
-            print("R(tar) {:.2f}".format(tar_pred.mean()))
+            print("R(src): {:.2f}".format(src_pred.mean()))
+            print("R(tar): {:.2f}".format(tar_pred.mean()))
+            print("D(src): {:.4f}\tD(tar): {:.4f}".format(
+                d_src.mean(), d_tar.mean()))
+            print("Classifier Accuracy: {:d}%".format(accu))
             print("c_loss: {:.4f}\tr_loss: {:.4f}\td_loss: {:.4f}".format(
                 c_loss, r_loss, d_loss))
 

@@ -10,7 +10,8 @@ import numpy as np
 import os
 
 feature_dim = 10
-random_z_size=100
+random_z_size = 100
+
 
 def get_theta(embedding_dim, num_samples=50):
     theta = [w/np.sqrt((w**2).sum())
@@ -43,6 +44,7 @@ def sliced_wasserstein_distance(encoded_samples, distribution_fn=random_uniform,
 
 
 def gradient_penalty(critic, h_s, h_t):
+
     alpha = torch.rand(h_s.size(0), 1).cuda()
     difference = h_t-h_s
     interpolates = h_s + (alpha * difference)
@@ -256,7 +258,7 @@ class Discriminator(nn.Module):
     '''
     Domain discrimiator
     '''
-
+    '''
     def __init__(self, in_dim):
         super(Discriminator, self).__init__()
         self.in_dim = in_dim
@@ -269,6 +271,26 @@ class Discriminator(nn.Module):
         logits = F.relu(self.bn1(self.fc1(x)))
         logits = F.log_softmax(self.fc2(logits), 1)
         return logits
+
+    '''
+    def __init__(self, in_dim):
+        super(Discriminator, self).__init__()
+        self.in_dim = in_dim
+        self.fc1 = nn.Linear(1*self.in_dim*self.in_dim, 100)
+        self.bn1 = nn.BatchNorm1d(100)
+        self.fc2 = nn.Linear(100, 25)
+        self.fc3 = nn.Linear(25, 2)
+
+    def forward(self, x, constant):
+        x = GradReverse.grad_reverse(x, constant)
+        logits = F.relu(self.bn1(self.fc1(x)))
+        logits = F.relu(self.fc2(logits))
+        logits = F.dropout(logits)
+        logits = F.log_softmax(self.fc3(logits), 1)
+        #logits = F.softmax(self.fc2(logits), 1)
+        
+        return logits
+    
 
 
 class Relavance(nn.Module):
