@@ -12,7 +12,7 @@ from data_loaders import *
 from visualization import *
 
 ''' Parameters '''
-total_epoch = 50
+total_epoch = 20
 feature_dim = 10  # feature dimension, output size of feature extractor
 d_ratio = 3  # training time of discriminator in an iteration
 c_ratio = 1  # training time of classifier in an iteration
@@ -47,7 +47,7 @@ r_optimizer = torch.optim.Adam(relater.parameters(), lr=1e-3)
 c_optimizer = torch.optim.SGD(
     classifier.parameters(), lr=1e-3, momentum=0.9)
 '''
-d_optimizer = torch.optim.Adam(discriminator.parameters(), lr=1e-4)
+d_optimizer = torch.optim.Adam(discriminator.parameters(), lr=1e-5)
 
 
 ''' Dataloaders '''
@@ -174,7 +174,7 @@ for epoch in range(total_epoch):
             print(
                 "l1_src: {:.4f} \t l1_tar: {:.4f} \t bce_src: {:.4f} \t bce_tar: {:.4f} \t w2_src: {:.4f} \t w2_tar: {:.4f} \t, w_z: {:.4f} \t".format(l1_src, l1_tar, bce_src, bce_tar, w2_src, w2_tar, wasserstein_z))
             '''
-
+            '''
             print("\n")
             print("R(src): {:.2f}".format(src_pred.mean()))
             print("R(tar): {:.2f}".format(tar_pred.mean()))
@@ -185,3 +185,10 @@ for epoch in range(total_epoch):
                 c_loss, r_loss, d_loss))
 
             #print("R(src): {:.4f}\t max: {:.4f}\t min: {:.4f}".format(test, torch.max(test), torch.min(test)))
+            '''
+            print("[Epoch{:3d}] ==> C_loss: {:.4f}\tR_loss: {:.4f}\tD_loss: {:.4f}".format(epoch,
+                                                                                           c_loss, r_loss, d_loss))
+''' concatenate source and target domain data, then plot t-SNE embedding'''
+data = np.concatenate(source_data.numpy(), target_data.numpy())
+label = np.concatenate(source_label.numpy(), target_label.numpy())
+visualize(data, label, 2, 10)

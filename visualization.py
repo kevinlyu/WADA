@@ -9,10 +9,8 @@ import scipy.io as sio
 import os
 
 
-def save_feature_to_mat(embedding, label, path="./mat/", dim):
-    ''' save (embedding, label) to .mat format '''
-    ''' [Optional] use Matlab to plot TSNE result '''
-
+def save_feature_to_mat(embedding, label, dim, path="./mat/"):
+    ''' save (embedding, label) to .mat format, can be load with python or matlab '''
     try:
         os.stat(path)
     except:
@@ -36,6 +34,7 @@ def plot_tsne(embedding, label, dim, num_classes=10, img_name="tsne.pdf"):
 
     print("Plotting t-SNE")
 
+    ''' Plot according given dimension '''
     if dim == 3:
         fig = plt.figure()
         ax = fig.add_subplot(111, projection="3d")
