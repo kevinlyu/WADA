@@ -13,7 +13,7 @@ from visualization import *
 
 ''' Parameters '''
 batch_size = 100
-total_epoch = 20
+total_epoch = 300
 feature_dim = 10  # feature dimension, output size of feature extractor
 d_ratio = 3  # training time of discriminator in an iteration
 c_ratio = 1  # training time of classifier in an iteration
@@ -191,14 +191,9 @@ for epoch in range(total_epoch):
                                                                                            c_loss, r_loss, d_loss))
 
 
-source_z = source_z.cpu()
-target_z = target_z.cpu()
-source_label = source_label.cpu()
-target_label = target_label.cpu()
-
 ''' Concatenate source and target domain data, then plot t-SNE embedding'''
-data = np.concatenate((source_z.numpy(), target_z.numpy()))
-label = np.concatenate((source_label.numpy(), target_label.numpy()))
-visualize(data, label, 2, 10)
+data = np.concatenate((source_z.cpu().numpy(), target_z.cpu().numpy()))
+label = np.concatenate((source_label.cpu().numpy(), target_label.cpu().numpy()))
+visualize(data, label, dim=2, num_classes=10)
 
 ''' Save model parameters '''

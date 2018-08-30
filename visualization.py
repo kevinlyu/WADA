@@ -7,7 +7,7 @@ from matplotlib.pyplot import cm
 from matplotlib.ticker import NullFormatter
 import scipy.io as sio
 import os
-
+from mpl_toolkits.mplot3d import Axes3D
 
 def save_feature_to_mat(embedding, label, dim, path="./mat/"):
     ''' save (embedding, label) to .mat format, can be load with python or matlab '''
@@ -84,9 +84,10 @@ def visualize(data, label, dim, num_classes=10, title="TSNE", img_name="TSNE.png
 
     tsne = TSNE(n_components=dim, verbose=1,
                 init="pca", perplexity=40, n_iter=300)
-    
+
     embedding = tsne.fit_transform(data, label)
 
     print("t-SNE used: {} seconds".format(time.time()-start_time))
 
-    plot_tsne(embedding, label, dim, num_classes, img_name)
+    plot_tsne(embedding, label, dim=dim,
+              num_classes=num_classes, img_name=img_name)
