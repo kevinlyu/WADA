@@ -251,7 +251,11 @@ class Classifier(nn.Module):
         logits = F.relu(self.bn3(logits))
         logits = self.fc4(logits)
 
-        return F.softmax(logits, 1)
+        # for BCE loss
+        # return F.softmax(logits, 1)
+
+        # for NLL loss
+        return F.log_softmax(logits, 1)
 
 
 class Discriminator(nn.Module):
@@ -273,6 +277,7 @@ class Discriminator(nn.Module):
         return logits
 
     '''
+
     def __init__(self, in_dim):
         super(Discriminator, self).__init__()
         self.in_dim = in_dim
@@ -288,9 +293,8 @@ class Discriminator(nn.Module):
         logits = F.dropout(logits)
         logits = F.log_softmax(self.fc3(logits), 1)
         #logits = F.softmax(self.fc2(logits), 1)
-        
+
         return logits
-    
 
 
 class Relavance(nn.Module):

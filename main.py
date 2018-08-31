@@ -13,12 +13,13 @@ from visualization import *
 
 ''' Parameters '''
 batch_size = 100
-total_epoch = 300
+total_epoch = 100
 feature_dim = 10  # feature dimension, output size of feature extractor
 d_ratio = 3  # training time of discriminator in an iteration
 c_ratio = 1  # training time of classifier in an iteration
 gamma = 10  # parameter for gradient penalty
 weight_swd = 10.0
+log_interval = 50  # interval to print loss message
 
 ''' Model Components '''
 # move all networks to GPU
@@ -30,7 +31,8 @@ discriminator = Discriminator(feature_dim).cuda()
 
 
 ''' Criterions '''
-class_criterion = nn.CrossEntropyLoss()
+#class_criterion = nn.CrossEntropyLoss()
+class_criterion = nn.NLLLoss()
 # Wasserstein distance should be defined by self, to be continue
 # domain_criterion = nn.NLLLoss()
 relater_criterion = nn.BCELoss()
@@ -154,6 +156,8 @@ for epoch in range(total_epoch):
             ''' When training discriminator, fix parameters of feature extractors '''
             _, source_z = source_extractor(source_data)
             _, target_z = target_extractor(target_data)
+            r_src = relater(source_z)
+            r_tar = relater(target_z)
 
         d_src = discriminator(source_z, 100)
         d_tar = discriminator(target_z, 100)
@@ -161,39 +165,20 @@ for epoch in range(total_epoch):
         ''' Wasserstein-2 distance with gradient penalty'''
         w2_loss = d_src.mean()-d_tar.mean()
         gp = gradient_penalty(discriminator, source_z, target_z)
-
         d_loss = w2_loss + gamma * gp
         d_loss.backward()
         d_optimizer.step()
 
-        if index % 50 == 0:
-            '''
-            print("[Epoch{:3d}] ==> Total loss: {:.4f} \t Class loss: {:.4f} \t Relavance loss: {:.4f} \t Domain loss: {:.4f}".format(
-            epoch, total_loss, c_loss, r_loss, d_loss))
-            '''
-            '''
-            print(
-                "l1_src: {:.4f} \t l1_tar: {:.4f} \t bce_src: {:.4f} \t bce_tar: {:.4f} \t w2_src: {:.4f} \t w2_tar: {:.4f} \t, w_z: {:.4f} \t".format(l1_src, l1_tar, bce_src, bce_tar, w2_src, w2_tar, wasserstein_z))
-            '''
-            '''
-            print("\n")
-            print("R(src): {:.2f}".format(src_pred.mean()))
-            print("R(tar): {:.2f}".format(tar_pred.mean()))
-            print("D(src): {:.4f}\tD(tar): {:.4f}".format(
-                d_src.mean(), d_tar.mean()))
-            print("Classifier Accuracy: {:d}%".format(accu))
-            print("c_loss: {:.4f}\tr_loss: {:.4f}\td_loss: {:.4f}".format(
-                c_loss, r_loss, d_loss))
-
-            #print("R(src): {:.4f}\t max: {:.4f}\t min: {:.4f}".format(test, torch.max(test), torch.min(test)))
-            '''
+        ''' Print loss message every log_interval steps'''
+        if index % log_interval == 0:
             print("[Epoch{:3d}] ==> C_loss: {:.4f}\tR_loss: {:.4f}\tD_loss: {:.4f}".format(epoch,
                                                                                            c_loss, r_loss, d_loss))
 
 
 ''' Concatenate source and target domain data, then plot t-SNE embedding'''
 data = np.concatenate((source_z.cpu().numpy(), target_z.cpu().numpy()))
-label = np.concatenate((source_label.cpu().numpy(), target_label.cpu().numpy()))
+label = np.concatenate(
+    (source_label.cpu().numpy(), target_label.cpu().numpy()))
 visualize(data, label, dim=2, num_classes=10)
 
 ''' Save model parameters '''

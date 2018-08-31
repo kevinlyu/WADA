@@ -83,9 +83,9 @@ def visualize(data, label, dim, num_classes=10, title="TSNE", img_name="TSNE.png
     start_time = time.time()
 
     tsne = TSNE(n_components=dim, verbose=1,
-                init="pca", perplexity=40, n_iter=300)
+                init="pca", perplexity=40, n_iter=3000)
 
-    embedding = tsne.fit_transform(data, label)
+    embedding = tsne.fit_transform(data)
 
     print("t-SNE used: {} seconds".format(time.time()-start_time))
 
