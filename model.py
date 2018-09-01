@@ -9,8 +9,7 @@ from torch.autograd import grad
 import numpy as np
 import os
 
-feature_dim = 10
-random_z_size = 100
+#feature_dim = 500
 
 
 def get_theta(embedding_dim, num_samples=50):
@@ -20,17 +19,15 @@ def get_theta(embedding_dim, num_samples=50):
     return torch.from_numpy(theta).type(torch.FloatTensor)
 
 
-def random_uniform(batch_size):
-    z = 2*(np.random.uniform(size=(batch_size, random_z_size))-0.5)
+def random_uniform(batch_size, embedding_dim):
+    z = 2*(np.random.uniform(size=(batch_size, embedding_dim))-0.5)
     return torch.from_numpy(z).type(torch.FloatTensor)
 
 
-def sliced_wasserstein_distance(encoded_samples, distribution_fn=random_uniform, num_projections=50, p=2):
+def sliced_wasserstein_distance(encoded_samples, embedding_dim, distribution_fn=random_uniform, num_projections=50, p=2):
 
     batch_size = encoded_samples.size(0)
-    z_samples = distribution_fn(batch_size)
-    embedding_dim = z_samples.size(1)
-
+    z_samples = distribution_fn(batch_size, embedding_dim)
     theta = get_theta(embedding_dim, num_projections)
     encoded_samples = encoded_samples.cpu()
     proj_ae = encoded_samples.matmul(theta.transpose(0, 1))
@@ -52,8 +49,10 @@ def gradient_penalty(critic, h_s, h_t):
     Reference
     https://github.com/jvanvugt/pytorch-domain-adaptation/blob/master/wdgrl.py
     '''
-    interpolates = torch.stack([interpolates, h_s, h_t]).requires_grad_()
-    preds = critic(interpolates, h_s.shape[1])
+    interpolates.requires_grad_()
+    #interpolates = torch.stack([interpolates, h_s, h_t]).requires_grad_()
+    #interpolates = interpolates.view(-1, 100)
+    preds = critic(interpolates)
     gradients = grad(preds, interpolates, grad_outputs=torch.ones_like(
         preds), retain_graph=True, create_graph=True)[0]
     gradient_norm = gradients.norm(2, dim=1)
@@ -235,7 +234,7 @@ class Classifier(nn.Module):
 
         self.in_dim = in_dim
 
-        self.fc1 = nn.Linear(1*self.in_dim*self.in_dim, 100)
+        self.fc1 = nn.Linear(self.in_dim, 100)
         self.bn1 = nn.BatchNorm1d(100)
         self.fc2 = nn.Linear(100, 75)
         self.bn2 = nn.BatchNorm1d(75)
@@ -281,15 +280,16 @@ class Discriminator(nn.Module):
     def __init__(self, in_dim):
         super(Discriminator, self).__init__()
         self.in_dim = in_dim
-        self.fc1 = nn.Linear(1*self.in_dim*self.in_dim, 100)
+        self.fc1 = nn.Linear(self.in_dim, 100)
         self.bn1 = nn.BatchNorm1d(100)
         self.fc2 = nn.Linear(100, 25)
+        self.bn2 = nn.BatchNorm1d(25)
         self.fc3 = nn.Linear(25, 2)
 
-    def forward(self, x, constant):
-        x = GradReverse.grad_reverse(x, constant)
+    def forward(self, x):
+        #x = GradReverse.grad_reverse(x, constant)
         logits = F.relu(self.bn1(self.fc1(x)))
-        logits = F.relu(self.fc2(logits))
+        logits = F.relu(self.bn2(self.fc2(logits)))
         logits = F.dropout(logits)
         logits = F.log_softmax(self.fc3(logits), 1)
         #logits = F.softmax(self.fc2(logits), 1)
@@ -306,7 +306,7 @@ class Relavance(nn.Module):
     def __init__(self, in_dim):
         super(Relavance, self).__init__()
         self.in_dim = in_dim
-        self.fc1 = nn.Linear(1*self.in_dim*self.in_dim, 100)
+        self.fc1 = nn.Linear(self.in_dim, 100)
         self.bn1 = nn.BatchNorm1d(100)
         self.fc2 = nn.Linear(100, 75)
         self.bn2 = nn.BatchNorm1d(75)

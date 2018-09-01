@@ -12,9 +12,9 @@ from data_loaders import *
 from visualization import *
 
 ''' Parameters '''
-batch_size = 100
-total_epoch = 100
-feature_dim = 10  # feature dimension, output size of feature extractor
+batch_size = 250
+total_epoch = 200
+feature_dim = 150  # feature dimension, output size of feature extractor
 d_ratio = 3  # training time of discriminator in an iteration
 c_ratio = 1  # training time of classifier in an iteration
 gamma = 10  # parameter for gradient penalty
@@ -23,18 +23,15 @@ log_interval = 50  # interval to print loss message
 
 ''' Model Components '''
 # move all networks to GPU
-source_extractor = Autoencoder().cuda()
-target_extractor = Autoencoder().cuda()
+source_extractor = Autoencoder(encoded_dim=feature_dim).cuda()
+target_extractor = Autoencoder(encoded_dim=feature_dim).cuda()
 relater = Relavance(feature_dim).cuda()
 classifier = Classifier(feature_dim).cuda()
 discriminator = Discriminator(feature_dim).cuda()
 
 
 ''' Criterions '''
-#class_criterion = nn.CrossEntropyLoss()
 class_criterion = nn.NLLLoss()
-# Wasserstein distance should be defined by self, to be continue
-# domain_criterion = nn.NLLLoss()
 relater_criterion = nn.BCELoss()
 
 ''' Optimizers '''
@@ -46,10 +43,6 @@ c_optimizer = torch.optim.Adam([{"params": source_extractor.parameters()},
 
 r_optimizer = torch.optim.Adam(relater.parameters(), lr=1e-3)
 
-'''
-c_optimizer = torch.optim.SGD(
-    classifier.parameters(), lr=1e-3, momentum=0.9)
-'''
 d_optimizer = torch.optim.Adam(discriminator.parameters(), lr=1e-5)
 
 
@@ -89,7 +82,7 @@ for epoch in range(total_epoch):
         target_data, target_label = target_data.cuda(), target_label.cuda()
         # print(source_data.shape)
         # print(target_data.shape)
-
+        # exit()
         ''' Train Classifier '''
         c_optimizer.zero_grad()
 
@@ -99,13 +92,17 @@ for epoch in range(total_epoch):
 
         source_recon, source_z = source_extractor(source_data)
         target_recon, target_z = target_extractor(target_data)
+        
+        # print(source_z.shape)
+        # print(target_z.shape)
+        # exit()
 
         l1_src = F.l1_loss(source_recon, source_data)
         l1_tar = F.l1_loss(target_recon, target_data)
         bce_src = F.binary_cross_entropy(source_recon, source_data)
         bce_tar = F.binary_cross_entropy(target_recon, target_data)
-        w2_src = weight_swd*sliced_wasserstein_distance(source_z).cuda()
-        w2_tar = weight_swd*sliced_wasserstein_distance(target_z).cuda()
+        w2_src = weight_swd*sliced_wasserstein_distance(source_z, embedding_dim=feature_dim).cuda()
+        w2_tar = weight_swd*sliced_wasserstein_distance(target_z, embedding_dim=feature_dim).cuda()
         wasserstein_z = (source_z.mean() - target_z.mean())**2
         pred_src = classifier(source_z)
         c_loss = class_criterion(pred_src, source_label)
@@ -116,6 +113,7 @@ for epoch in range(total_epoch):
 
         # debug use, show accuracy of classifier
         _, pred_result = torch.max(pred_src, 1)
+
         c_loss = class_criterion(pred_src, source_label)
         correct = (pred_result == source_label).sum()
         accu = 100.0 * correct / source_data.shape[0]
@@ -141,6 +139,10 @@ for epoch in range(total_epoch):
         tar_pred = relater(target_z.detach())
         tar_loss = relater_criterion(tar_pred, tar_tag)
 
+        #print(src_pred.shape)
+        #print(tar_pred.shape)
+        #exit()
+
         r_loss = 0.5*(src_loss + tar_loss)
         r_loss.backward()
         r_optimizer.step()
@@ -156,15 +158,23 @@ for epoch in range(total_epoch):
             ''' When training discriminator, fix parameters of feature extractors '''
             _, source_z = source_extractor(source_data)
             _, target_z = target_extractor(target_data)
+
             r_src = relater(source_z)
             r_tar = relater(target_z)
 
-        d_src = discriminator(source_z, 100)
-        d_tar = discriminator(target_z, 100)
+        gp = gradient_penalty(discriminator, source_z, target_z)
+        
+        d_src = discriminator(source_z)
+        d_tar = discriminator(target_z)
+
+        #print(d_src.shape)
+        #print(d_tar.shape)
+        #exit()
 
         ''' Wasserstein-2 distance with gradient penalty'''
         w2_loss = d_src.mean()-d_tar.mean()
-        gp = gradient_penalty(discriminator, source_z, target_z)
+        
+
         d_loss = w2_loss + gamma * gp
         d_loss.backward()
         d_optimizer.step()
@@ -173,7 +183,6 @@ for epoch in range(total_epoch):
         if index % log_interval == 0:
             print("[Epoch{:3d}] ==> C_loss: {:.4f}\tR_loss: {:.4f}\tD_loss: {:.4f}".format(epoch,
                                                                                            c_loss, r_loss, d_loss))
-
 
 ''' Concatenate source and target domain data, then plot t-SNE embedding'''
 data = np.concatenate((source_z.cpu().numpy(), target_z.cpu().numpy()))
