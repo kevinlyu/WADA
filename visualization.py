@@ -92,6 +92,3 @@ def visualize(data, label, dim, num_classes=10, title="TSNE", img_name="TSNE.png
 
     plot_tsne(embedding, label, dim=dim,
               num_classes=num_classes, img_name=img_name)
-    # print(source_z.shape)
-    # print(target_z.logits = F.relu(self
-    # exit()

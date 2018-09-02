@@ -13,8 +13,8 @@ from visualization import *
 
 ''' Parameters '''
 batch_size = 250
-total_epoch = 10
-feature_dim = 150  # feature dimension, output size of feature extractor
+total_epoch = 1
+feature_dim = 50  # feature dimension, output size of feature extractor
 d_ratio = 3  # training time of discriminator in an iteration
 c_ratio = 1  # training time of classifier in an iteration
 gamma = 10  # parameter for gradient penalty
@@ -61,14 +61,7 @@ target_loader = torch.utils.data.DataLoader(MNISTM(
     ])), batch_size=batch_size, shuffle=True)
 
 
-model = WADA(source_extractor, target_extractor, classifier, relater, discriminator, source_loader, target_loader)
+model = WADA(source_extractor, target_extractor, classifier, relater, discriminator, source_loader, target_loader, total_epoch=100, feature_dim=feature_dim, num_classes=10)
 model.train()
-"""
-''' Concatenate source and target domain data, then plot t-SNE embedding'''
-data = np.concatenate((source_z.cpu().numpy(), target_z.cpu().numpy()))
-label = np.concatenate(
-    (source_label.cpu().numpy(), target_label.cpu().numpy()))
-visualize(data, label, dim=2, num_classes=10)
-
-''' Save model parameters '''
-"""
+model.save_model()
+model.visualize_by_label(dim=2)

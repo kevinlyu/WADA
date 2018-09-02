@@ -6,8 +6,14 @@ from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from torch.autograd import grad
+from sklearn.manifold import TSNE
+from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.pyplot as plt
+from matplotlib.pyplot import cm
+from matplotlib.ticker import NullFormatter
 import numpy as np
 import os
+import time
 from datetime import datetime
 from util import *
 
@@ -17,6 +23,7 @@ def get_theta(embedding_dim, num_samples=50):
              for w in np.random.normal(size=(num_samples, embedding_dim))]
     theta = np.asarray(theta)
     return torch.from_numpy(theta).type(torch.FloatTensor)
+
 
 def random_uniform(batch_size, embedding_dim):
     z = 2*(np.random.uniform(size=(batch_size, embedding_dim))-0.5)
@@ -77,6 +84,7 @@ class GradReverse(torch.autograd.Function):
         Extension of grad reverse layer
         """
         return GradReverse.apply(x, constant)
+
 
 class Autoencoder(nn.Module):
 
@@ -225,7 +233,6 @@ class Discriminator(nn.Module):
         logits = F.relu(self.bn2(self.fc2(logits)))
         logits = F.dropout(logits)
         logits = F.log_softmax(self.fc3(logits), 1)
-        # logits = F.softmax(self.fc2(logits), 1)
 
         return logits
 
@@ -255,7 +262,7 @@ class Relavance(nn.Module):
         logits = F.relu(self.bn3(self.fc3(logits)))
         logits = F.relu(self.bn4(self.fc4(logits)))
         logits = F.sigmoid(self.fc5(logits))
-        logits = F.dropout(logits)
+        #logits = F.dropout(logits)
 
         return logits
 
@@ -263,8 +270,10 @@ class Relavance(nn.Module):
 class WADA:
     """ WADA model """
 
-    def __init__(self, src_extractor, tar_extractor, classifier, relater, discriminator, src_loader, tar_loader, total_epoch=50, img_size=28):
+    def __init__(self, src_extractor, tar_extractor, classifier, relater, discriminator, src_loader, tar_loader, total_epoch=50, img_size=28, feature_dim=150, num_classes=10):
         """ Parameters """
+        self.feature_dim = feature_dim
+        self.num_classes = num_classes
         self.total_epoch = total_epoch
         self.log_interval = 10
         self.img_size = img_size
@@ -290,7 +299,7 @@ class WADA:
                                        {"params": self.tar_extractor.parameters()},
                                        {"params": self.classifier.parameters()}], lr=1e-3)
         self.r_opt = torch.optim.Adam(self.relater.parameters(), lr=1e-3)
-        self.d_opt = torch.optim.Adam(self.discriminator.parameters(), lr=1e-4)
+        self.d_opt = torch.optim.Adam(self.discriminator.parameters(), lr=1e-5)
 
     def train(self):
         """ Train WADA """
@@ -309,7 +318,7 @@ class WADA:
                 if src_data.shape[1] != 3:
                     src_data = src_data.expand(
                         src_data.shape[0], 3, self.img_size, self.img_size)
-                
+
                 src_data, src_label = src_data.cuda(), src_label.cuda()
                 tar_data, tar_label = tar_data.cuda(), tar_label.cuda()
 
@@ -356,25 +365,26 @@ class WADA:
                 self.r_opt.step()
 
                 """ Train Discriminator """
-                self.d_opt.zero_grad()
+                for dt in range(3):
+                    self.d_opt.zero_grad()
 
-                with torch.no_grad():
-                    _, src_z = self.src_extractor(src_data)
-                    _, tar_z = self.tar_extractor(tar_data)
+                    with torch.no_grad():
+                        _, src_z = self.src_extractor(src_data)
+                        _, tar_z = self.tar_extractor(tar_data)
 
-                    src_r = self.relater(src_z)
-                    tar_r = self.relater(tar_z)
+                        src_r = self.relater(src_z)
+                        tar_r = self.relater(tar_z)
 
-                gp = gradient_penalty(self.discriminator, src_z, tar_z)
+                    gp = gradient_penalty(self.discriminator, src_z, tar_z)
 
-                d_src = self.discriminator(src_z)
-                d_tar = self.discriminator(tar_z)
+                    d_src = self.discriminator(src_z)
+                    d_tar = self.discriminator(tar_z)
 
-                w2_loss = d_src.mean()-d_tar.mean()
-                d_loss = -w2_loss + self.gamma * gp
+                    w2_loss = d_src.mean()-d_tar.mean()
+                    d_loss = -w2_loss + self.gamma * gp
 
-                d_loss.backward()
-                self.d_opt.step()
+                    d_loss.backward()
+                    self.d_opt.step()
 
                 if index % self.log_interval == 0:
                     print("[Epoch{:3d}] ==> C_loss: {:.4f}\tR_loss: {:.4f}\tD_loss: {:.4f}".format(epoch,
@@ -384,15 +394,15 @@ class WADA:
         """ Test WADA """
         print("[start testing]")
 
+        self.src_extractor.eval()
+        self.tar_extractor.eval()
+        self.classifier.eval()
+        self.relater.eval()
+        self.discriminator.eval()
+
     def save_model(self, save_root="./saved_model/"):
 
         folder = datetime.now().strftime("%Y-%m-%d_%H-%M")
-
-        try:
-            os.state(save_root)
-        except:
-            os.mkdir(save_root)
-
         save_dir = os.path.join(save_root, folder)
 
         try:
@@ -414,4 +424,83 @@ class WADA:
             torch.load(load_dir, "WADA" + "_R.pkl"))
         self.discriminator.load_state_dict(
             torch.load(load_dir, "WADA" + "_D.pkl"))
-    
+
+    def visualize_by_label(self, dim=2, title="t-SNE", file_name="t-SNE.pdf", save_root="./saved_model/"):
+        print("t-SNE processing")
+
+        self.src_extractor.eval()
+        self.tar_extractor.eval()
+
+        iterator = iter(self.src_loader)
+        src_data, src_label = iterator.next()
+        src_data, src_label = src_data.cuda(), src_label.cuda()
+
+        if src_data.shape[1] != 3:
+            src_data = src_data.expand(
+                src_data.shape[0], 3, self.img_size, self.img_size)
+
+        iterator = iter(self.tar_loader)
+        tar_data, tar_label = iterator.next()
+        tar_data, tar_label = tar_data.cuda(), tar_label.cuda()
+
+        _, src_z = self.src_extractor(src_data)
+        _, tar_z = self.tar_extractor(tar_data)
+
+        data = np.concatenate(
+            (src_z.cpu().detach().numpy(), tar_z.cpu().detach().numpy()))
+        label = np.concatenate(
+            (src_label.cpu().numpy(), tar_label.cpu().numpy()))
+
+        start_time = time.time()
+        tsne = TSNE(n_components=dim, verbose=1,
+                    init="pca", perplexity=40, n_iter=3000)
+
+        embedding = tsne.fit_transform(data)
+
+        embedding_max, embedding_min = np.max(
+            embedding, 0), np.min(embedding, 0)
+        embedding = (embedding-embedding_min)/(embedding_max-embedding_min)
+
+        print("Plotting t-SNE")
+
+        ''' Plot according given dimension '''
+        if dim == 3:
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection="3d")
+            colors = cm.rainbow(np.linspace(0.0, 1.0, self.num_classes))
+
+            xx = embedding[:, 0]
+            yy = embedding[:, 1]
+            zz = embedding[:, 2]
+
+            for i in range(self.num_classes):
+                ax.scatter(xx[label == i], yy[label == i],
+                           zz[label == i], color=colors[i], s=10)
+
+            ax.xaxis.set_major_formatter(NullFormatter())
+            ax.yaxis.set_major_formatter(NullFormatter())
+            ax.zaxis.set_major_formatter(NullFormatter())
+            plt.axis('tight')
+            plt.legend(loc='best', scatterpoints=1, fontsize=5)
+            plt.savefig(file_name, format='pdf', dpi=600)
+            plt.show()
+
+        elif dim == 2:
+
+            fig = plt.figure()
+            ax = fig.add_subplot(111)
+            colors = cm.rainbow(np.linspace(0.0, 1.0, self.num_classes))
+
+            xx = embedding[:, 0]
+            yy = embedding[:, 1]
+
+            for i in range(self.num_classes):
+                ax.scatter(xx[label == i], yy[label == i],
+                           color=colors[i], s=10)
+
+            ax.xaxis.set_major_formatter(NullFormatter())
+            ax.yaxis.set_major_formatter(NullFormatter())
+            plt.axis('tight')
+            plt.legend(loc='best', scatterpoints=1, fontsize=5)
+            plt.savefig(file_name, format='pdf', dpi=600)
+            plt.show()

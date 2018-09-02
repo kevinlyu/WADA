@@ -8,3 +8,4 @@ mnist/*
 *.png
 mat/*
 saved_model/
+*.pdf
