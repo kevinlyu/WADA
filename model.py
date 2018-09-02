@@ -8,8 +8,8 @@ from torchvision import transforms
 from torch.autograd import grad
 import numpy as np
 import os
-
-#feature_dim = 500
+from datetime import datetime
+from util import *
 
 
 def get_theta(embedding_dim, num_samples=50):
@@ -17,7 +17,6 @@ def get_theta(embedding_dim, num_samples=50):
              for w in np.random.normal(size=(num_samples, embedding_dim))]
     theta = np.asarray(theta)
     return torch.from_numpy(theta).type(torch.FloatTensor)
-
 
 def random_uniform(batch_size, embedding_dim):
     z = 2*(np.random.uniform(size=(batch_size, embedding_dim))-0.5)
@@ -45,13 +44,13 @@ def gradient_penalty(critic, h_s, h_t):
     alpha = torch.rand(h_s.size(0), 1).cuda()
     difference = h_t-h_s
     interpolates = h_s + (alpha * difference)
-    '''
+    """
     Reference
     https://github.com/jvanvugt/pytorch-domain-adaptation/blob/master/wdgrl.py
-    '''
+    """
     interpolates.requires_grad_()
-    #interpolates = torch.stack([interpolates, h_s, h_t]).requires_grad_()
-    #interpolates = interpolates.view(-1, 100)
+    # interpolates = torch.stack([interpolates, h_s, h_t]).requires_grad_()
+    # interpolates = interpolates.view(-1, 100)
     preds = critic(interpolates)
     gradients = grad(preds, interpolates, grad_outputs=torch.ones_like(
         preds), retain_graph=True, create_graph=True)[0]
@@ -78,54 +77,6 @@ class GradReverse(torch.autograd.Function):
         Extension of grad reverse layer
         """
         return GradReverse.apply(x, constant)
-
-
-class SAE:
-
-    def __init__(self, autoencoder, optimizer, distribution_fn, num_projections=50, p=2, weight_swd=10):
-        self.model = autoencoder
-        self.optimizer = optimizer
-        self.distribution_fn = distribution_fn
-        self.embedding_dim = self.model.encoded_dim
-        self.num_projections = num_projections
-        self.p = p
-        self.weight_swd = weight_swd
-
-    def train(self, x):
-        self.optimizer.zero_grad()
-
-        recon_x, z = self.model(x)
-
-        l1 = F.l1_loss(recon_x, x)
-        bce = F.binary_cross_entropy(recon_x, x)
-
-        recon_x = recon_x.cpu()
-
-        w2 = float(self.weight_swd)*sliced_wasserstein_distance(z,
-                                                                self.distribution_fn, self.num_projections, self.p)
-        w2 = w2.cuda()
-        loss = l1+bce+w2
-
-        loss.backward()
-        self.optimizer.step()
-
-        return {'loss': loss, 'bce': bce, 'l1': l1, 'w2': w2, 'encode': z, 'decode': recon_x}
-
-    def test(self, x):
-        self.optimizer.zero_grad()
-        recon_x, z = self.model(x)
-
-        l1 = F.l1_loss(recon_x, x)
-        bce = F.binary_cross_entropy(recon_x, x)
-        recon_x = recon_x.cpu()
-        w2 = float(self.weight_swd)*sliced_wasserstein_distance(z,
-                                                                self.distribution_fn, self.num_projections, self.p)
-
-        w2 = w2.cuda()
-        loss = l1+bce+w2
-
-        return {'loss': loss, 'bce': bce, 'l1': l1, 'w2': w2, 'encode': z, 'decode': recon_x}
-
 
 class Autoencoder(nn.Module):
 
@@ -225,9 +176,9 @@ class Autoencoder(nn.Module):
 
 
 class Classifier(nn.Module):
-    '''
+    """
     Task Classifier
-    '''
+    """
 
     def __init__(self, in_dim):
         super(Classifier, self).__init__()
@@ -258,24 +209,6 @@ class Classifier(nn.Module):
 
 
 class Discriminator(nn.Module):
-    '''
-    Domain discrimiator
-    '''
-    '''
-    def __init__(self, in_dim):
-        super(Discriminator, self).__init__()
-        self.in_dim = in_dim
-        self.fc1 = nn.Linear(1*self.in_dim*self.in_dim, 100)
-        self.bn1 = nn.BatchNorm1d(100)
-        self.fc2 = nn.Linear(100, 2)
-
-    def forward(self, x, constant):
-        x = GradReverse.grad_reverse(x, constant)
-        logits = F.relu(self.bn1(self.fc1(x)))
-        logits = F.log_softmax(self.fc2(logits), 1)
-        return logits
-
-    '''
 
     def __init__(self, in_dim):
         super(Discriminator, self).__init__()
@@ -287,21 +220,21 @@ class Discriminator(nn.Module):
         self.fc3 = nn.Linear(25, 2)
 
     def forward(self, x):
-        #x = GradReverse.grad_reverse(x, constant)
+        # x = GradReverse.grad_reverse(x, constant)
         logits = F.relu(self.bn1(self.fc1(x)))
         logits = F.relu(self.bn2(self.fc2(logits)))
         logits = F.dropout(logits)
         logits = F.log_softmax(self.fc3(logits), 1)
-        #logits = F.softmax(self.fc2(logits), 1)
+        # logits = F.softmax(self.fc2(logits), 1)
 
         return logits
 
 
 class Relavance(nn.Module):
 
-    '''
+    """
     Relanvance network to conduct partial transfer
-    '''
+    """
 
     def __init__(self, in_dim):
         super(Relavance, self).__init__()
@@ -325,3 +258,160 @@ class Relavance(nn.Module):
         logits = F.dropout(logits)
 
         return logits
+
+
+class WADA:
+    """ WADA model """
+
+    def __init__(self, src_extractor, tar_extractor, classifier, relater, discriminator, src_loader, tar_loader, total_epoch=50, img_size=28):
+        """ Parameters """
+        self.total_epoch = total_epoch
+        self.log_interval = 10
+        self.img_size = img_size
+        self.weight_swd = 10
+        self.gamma = 0.5
+        """ Components of  WADA"""
+        self.src_extractor = src_extractor
+        self.tar_extractor = tar_extractor
+        self.classifier = classifier
+        self.relater = relater
+        self.discriminator = discriminator
+
+        """ Dataloader """
+        self.src_loader = src_loader
+        self.tar_loader = tar_loader
+
+        """ Criterions """
+        self.c_criterion = nn.NLLLoss()
+        self.r_criterion = nn.BCELoss()
+
+        """ Optimizers """
+        self.c_opt = torch.optim.Adam([{"params": self.src_extractor.parameters()},
+                                       {"params": self.tar_extractor.parameters()},
+                                       {"params": self.classifier.parameters()}], lr=1e-3)
+        self.r_opt = torch.optim.Adam(self.relater.parameters(), lr=1e-3)
+        self.d_opt = torch.optim.Adam(self.discriminator.parameters(), lr=1e-4)
+
+    def train(self):
+        """ Train WADA """
+        print("[start training]")
+
+        for epoch in range(self.total_epoch):
+            for index, (src, tar) in enumerate(zip(self.src_loader, self.tar_loader)):
+                src_data, src_label = src
+                tar_data, tar_label = tar
+
+                size = min(src_data.shape[0], tar_data.shape[0])
+                src_data, src_label = src_data[0:size], src_label[0:size]
+                tar_data, tar_label = tar_data[0:size], tar_label[0:size]
+
+                """ For MNIST data, expand number of channel to 3 """
+                if src_data.shape[1] != 3:
+                    src_data = src_data.expand(
+                        src_data.shape[0], 3, self.img_size, self.img_size)
+                
+                src_data, src_label = src_data.cuda(), src_label.cuda()
+                tar_data, tar_label = tar_data.cuda(), tar_label.cuda()
+
+                """ Train Classifier """
+                self.c_opt.zero_grad()
+
+                _, src_z = self.src_extractor(src_data)
+                _, tar_z = self.tar_extractor(tar_data)
+
+                w2_src = self.weight_swd * \
+                    sliced_wasserstein_distance(
+                        src_z, embedding_dim=src_z.shape[1]).cuda()
+                w2_tar = self.weight_swd * \
+                    sliced_wasserstein_distance(
+                        tar_z, embedding_dim=tar_z.shape[1]).cuda()
+                w_z = src_z.mean()-tar_z.mean()
+
+                pred_label = self.classifier(src_z)
+                c_loss = self.c_criterion(pred_label, src_label)
+                c_loss = c_loss + w2_src + w2_tar + \
+                    self.discriminator(src_z).mean() - \
+                    self.discriminator(tar_z).mean()
+
+                c_loss.backward()
+                self.c_opt.step()
+
+                """ Train Relater"""
+                self.r_opt.zero_grad()
+
+                with torch.no_grad():
+                    _, src_z = self.src_extractor(src_data)
+                    _, tar_z = self.tar_extractor(tar_data)
+
+                src_tag = torch.zeros(src_z.size(0)).cuda()
+                src_pred = self.relater(src_z)
+                src_loss = self.r_criterion(src_pred, src_tag)
+
+                tar_tag = torch.ones(tar_z.size(0)).cuda()
+                tar_pred = self.relater(tar_z)
+                tar_loss = self.r_criterion(tar_pred, tar_tag)
+
+                r_loss = src_loss + tar_loss
+                r_loss.backward()
+                self.r_opt.step()
+
+                """ Train Discriminator """
+                self.d_opt.zero_grad()
+
+                with torch.no_grad():
+                    _, src_z = self.src_extractor(src_data)
+                    _, tar_z = self.tar_extractor(tar_data)
+
+                    src_r = self.relater(src_z)
+                    tar_r = self.relater(tar_z)
+
+                gp = gradient_penalty(self.discriminator, src_z, tar_z)
+
+                d_src = self.discriminator(src_z)
+                d_tar = self.discriminator(tar_z)
+
+                w2_loss = d_src.mean()-d_tar.mean()
+                d_loss = -w2_loss + self.gamma * gp
+
+                d_loss.backward()
+                self.d_opt.step()
+
+                if index % self.log_interval == 0:
+                    print("[Epoch{:3d}] ==> C_loss: {:.4f}\tR_loss: {:.4f}\tD_loss: {:.4f}".format(epoch,
+                                                                                                   c_loss, r_loss, d_loss))
+
+    def test(self):
+        """ Test WADA """
+        print("[start testing]")
+
+    def save_model(self, save_root="./saved_model/"):
+
+        folder = datetime.now().strftime("%Y-%m-%d_%H-%M")
+
+        try:
+            os.state(save_root)
+        except:
+            os.mkdir(save_root)
+
+        save_dir = os.path.join(save_root, folder)
+
+        try:
+            os.stat(save_dir)
+        except:
+            os.mkdir(save_dir)
+
+        torch.save(self.classifier, os.path.join(save_dir, "WADA" + "_C.pkl"))
+        torch.save(self.relater, os.path.join(save_dir, "WADA" + "_R.pkl"))
+        torch.save(self.discriminator, os.path.join(
+            save_dir, "WADA" + "_D.pkl"))
+
+    def load_model(self, folder, save_root="./saved_model/"):
+
+        load_dir = os.path.join(save_root, folder)
+        self.classifier.load_state_dict(
+            torch.load(load_dir, "WADA" + "_C.pkl"))
+        self.relater.load_state_dict(
+            torch.load(load_dir, "WADA" + "_R.pkl"))
+        self.discriminator.load_state_dict(
+            torch.load(load_dir, "WADA" + "_D.pkl"))
+    

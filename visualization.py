@@ -81,13 +81,17 @@ def visualize(data, label, dim, num_classes=10, title="TSNE", img_name="TSNE.png
 
     print("t-SNE processing")
     start_time = time.time()
-
+    '''
     tsne = TSNE(n_components=dim, verbose=1,
                 init="pca", perplexity=40, n_iter=3000)
-
+    '''
+    tsne = TSNE(n_components=dim)
     embedding = tsne.fit_transform(data)
 
     print("t-SNE used: {} seconds".format(time.time()-start_time))
 
     plot_tsne(embedding, label, dim=dim,
               num_classes=num_classes, img_name=img_name)
+    # print(source_z.shape)
+    # print(target_z.logits = F.relu(self
+    # exit()

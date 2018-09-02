@@ -7,3 +7,4 @@ SWAE/*
 mnist/*
 *.png
 mat/*
+saved_model/
