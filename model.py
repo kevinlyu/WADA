@@ -83,6 +83,40 @@ class GradReverse(torch.autograd.Function):
         return GradReverse.apply(x, constant)
 
 
+class Extractor(nn.Module):
+    ''' Feature extractor '''
+
+    def __init__(self, in_channels=16, lrelu_slope=0.2, encoded_dim=100):
+        super(Extractor, self).__init__()
+
+        self.in_channels = in_channels
+        self.lrelu_slope = lrelu_slope
+
+        self.encoded_dim = encoded_dim
+
+        self.extract = nn.Sequential(
+            nn.Conv2d(3, self.in_channels*1, kernel_size=3, padding=1),
+            nn.MaxPool2d(2),
+            nn.LeakyReLU(self.lrelu_slope),
+            nn.Conv2d(self.in_channels*1, self.in_channels *
+                      4, kernel_size=3, padding=1),
+            nn.MaxPool2d(2),
+            nn.LeakyReLU(self.lrelu_slope)
+        )
+
+        self.fc = nn.Sequential(
+            nn.Linear(self.in_channels*4*7*7, self.encoded_dim),
+            nn.ReLU()
+        )
+
+    def forward(self, x):
+        z = self.extract(x)
+        z = z.view(z.shape[0], self.in_channels*4*7*7)
+        z = self.fc(z)
+
+        return z
+
+
 class Autoencoder(nn.Module):
 
     def __init__(self, in_channels=16, lrelu_slope=0.2, fc_dim=128, encoded_dim=100):
@@ -259,7 +293,7 @@ class Relavance(nn.Module):
         logits = F.relu(self.bn3(self.fc3(logits)))
         logits = F.relu(self.bn4(self.fc4(logits)))
         logits = F.sigmoid(self.fc5(logits))
-        #logits = F.dropout(logits)
+        # logits = F.dropout(logits)
 
         return logits
 
@@ -267,7 +301,7 @@ class Relavance(nn.Module):
 class WADA:
     """ WADA model """
 
-    def __init__(self, src_extractor, tar_extractor, classifier, relater, discriminator, src_loader, tar_loader, total_epoch=50, img_size=28, feature_dim=150, num_classes=10):
+    def __init__(self, src_extractor, tar_extractor, classifier, relater, discriminator, src_loader, tar_loader, total_epoch=20, img_size=28, feature_dim=150, num_classes=10):
         """ Parameters """
         self.feature_dim = feature_dim
         self.num_classes = num_classes
@@ -322,27 +356,42 @@ class WADA:
                 """ Train Classifier """
                 self.c_opt.zero_grad()
 
+                '''
                 src_rec, src_z = self.src_extractor(src_data)
                 tar_rec, tar_z = self.src_extractor(tar_data)
+                '''
 
+                src_z = self.src_extractor(src_data)
+                tar_z = self.tar_extractor(tar_data)
+
+                '''
                 l1_src = F.l1_loss(src_rec, src_data)
                 l1_tar = F.l1_loss(tar_rec, tar_data)
                 bce_src = F.binary_cross_entropy(src_rec, src_data)
                 bce_tar = F.binary_cross_entropy(tar_rec, tar_data)
+                '''
+
+                '''
                 w2_src = self.weight_swd * \
                     sliced_wasserstein_distance(
                         src_z, embedding_dim=src_z.shape[1]).cuda()
                 w2_tar = self.weight_swd * \
                     sliced_wasserstein_distance(
                         tar_z, embedding_dim=tar_z.shape[1]).cuda()
+                '''
                 w_z = (src_z.mean()-tar_z.mean())**2
 
                 pred_label = self.classifier(src_z)
                 c_loss = self.c_criterion(pred_label, src_label)
+                '''
                 c_loss = c_loss + w2_src + w2_tar + l1_src+l1_tar+bce_src+bce_tar+10 * \
                     (self.discriminator(src_z).mean() -
-                     self.discriminator(tar_z).mean())
+                     self.discriminator(tar_z).mean())**2
+                '''
 
+                c_loss = c_loss + w_z + \
+                    self.discriminator(src_z).mean() - \
+                    self.discriminator(tar_z).mean()
                 c_loss.backward()
                 self.c_opt.step()
 
@@ -350,8 +399,8 @@ class WADA:
                 self.r_opt.zero_grad()
 
                 with torch.no_grad():
-                    _, src_z = self.src_extractor(src_data)
-                    _, tar_z = self.src_extractor(tar_data)
+                    src_z = self.src_extractor(src_data)
+                    tar_z = self.tar_extractor(tar_data)
 
                 src_tag = torch.zeros(src_z.size(0)).cuda()
                 src_pred = self.relater(src_z)
@@ -366,12 +415,16 @@ class WADA:
                 self.r_opt.step()
 
                 """ Train Discriminator """
-                for dt in range(5):
+                for _ in range(5):
                     self.d_opt.zero_grad()
 
                     with torch.no_grad():
+                        '''
                         _, src_z = self.src_extractor(src_data)
-                        _, tar_z = self.src_extractor(tar_data)
+                        _, tar_z = self.tar_extractor(tar_data)
+                        '''
+                        src_z = self.src_extractor(src_data)
+                        tar_z = self.tar_extractor(tar_data)
 
                         src_r = self.relater(src_z)
                         tar_r = self.relater(tar_z)
@@ -444,7 +497,7 @@ class WADA:
             src_label = torch.cat((src_label, label))
 
         tar_data = torch.FloatTensor()
-        tar_label = torch.LongTensor()
+        tar_label = torch.IntTensor()
 
         for index, tar in enumerate(self.tar_loader):
             data, label = tar
@@ -458,22 +511,8 @@ class WADA:
         src_data, src_label = src_data[0:1000], src_label[0:1000]
         tar_data, tar_label = tar_data[0:1000], tar_label[0:1000]
 
-        '''
-        iterator = iter(self.src_loader)
-        src_data, src_label = iterator.next()
-        src_data, src_label = src_data.cuda(), src_label.cuda()
-
-        if src_data.shape[1] != 3:
-            src_data = src_data.expand(
-                src_data.shape[0], 3, self.img_size, self.img_size)
-
-        iterator = iter(self.tar_loader)
-        tar_data, tar_label = iterator.next()
-        tar_data, tar_label = tar_data.cuda(), tar_label.cuda()
-        '''
-        
-        _, src_z = self.src_extractor(src_data)
-        _, tar_z = self.src_extractor(tar_data)
+        src_z = self.src_extractor(src_data)
+        tar_z = self.src_extractor(tar_data)
 
         data = np.concatenate(
             (src_z.detach().numpy(), tar_z.detach().numpy()))
@@ -489,6 +528,7 @@ class WADA:
         embedding_max, embedding_min = np.max(
             embedding, 0), np.min(embedding, 0)
         embedding = (embedding-embedding_min)/(embedding_max-embedding_min)
+
         print("t-SNE spent {} secs".format(time.time()-start_time))
         print("Plotting t-SNE")
 
@@ -526,6 +566,97 @@ class WADA:
             for i in range(self.num_classes):
                 ax.scatter(xx[label == i], yy[label == i],
                            color=colors[i], s=10)
+
+            ax.xaxis.set_major_formatter(NullFormatter())
+            ax.yaxis.set_major_formatter(NullFormatter())
+            plt.axis('tight')
+            plt.legend(loc='best', scatterpoints=1, fontsize=5)
+            plt.savefig(file_name, format='pdf', dpi=600)
+            plt.show()
+
+    def visualize_by_domain(self, dim=2, title="t-SNE", file_name="t-SNE.pdf", save_root="./saved_model/"):
+        print("t-SNE processing")
+        self.src_extractor.cpu()
+        self.tar_extractor.cpu()
+
+        self.src_extractor.eval()
+        self.tar_extractor.eval()
+
+        src_data = torch.FloatTensor()
+
+        for index, src in enumerate(self.src_loader):
+            data, label = src
+            src_data = torch.cat((src_data, data))
+
+        tar_data = torch.FloatTensor()
+
+        for index, tar in enumerate(self.tar_loader):
+            data, label = tar
+            tar_data = torch.cat((tar_data, data))
+
+        if src_data.shape[1] != 3:
+            src_data = src_data.expand(
+                src_data.shape[0], 3, self.img_size, self.img_size)
+
+        src_data = src_data[0:1000]
+        tar_data = tar_data[0:1000]
+
+        src_z = self.src_extractor(src_data)
+        tar_z = self.src_extractor(tar_data)
+
+        data = np.concatenate(
+            (src_z.detach().numpy(), tar_z.detach().numpy()))
+
+        src_tag = torch.ones(src_z.size(0))
+        tar_tag = torch.zeros(tar_z.size(0))
+
+        tag = np.concatenate((src_tag.numpy(), tar_tag.numpy()))
+
+        start_time = time.time()
+        tsne = TSNE(n_components=dim, verbose=1,
+                    init="pca", perplexity=40, n_iter=3000)
+
+        embedding = tsne.fit_transform(data)
+
+        embedding_max, embedding_min = np.max(
+            embedding, 0), np.min(embedding, 0)
+        embedding = (embedding-embedding_min)/(embedding_max-embedding_min)
+
+        print("t-SNE spent {} secs".format(time.time()-start_time))
+        print("Plotting t-SNE")
+
+        ''' Plot according given dimension '''
+        if dim == 3:
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection="3d")
+
+            xx = embedding[:, 0]
+            yy = embedding[:, 1]
+            zz = embedding[:, 2]
+
+            for i in range(2):
+                ax.scatter(xx[tag == i], yy[tag == i],
+                           zz[tag == i], color=cm.bwr(i/1.), s=10)
+
+            ax.xaxis.set_major_formatter(NullFormatter())
+            ax.yaxis.set_major_formatter(NullFormatter())
+            ax.zaxis.set_major_formatter(NullFormatter())
+            plt.axis('tight')
+            plt.legend(loc='best', scatterpoints=1, fontsize=5)
+            plt.savefig(file_name, format='pdf', dpi=600)
+            plt.show()
+
+        elif dim == 2:
+
+            fig = plt.figure()
+            ax = fig.add_subplot(111)
+
+            xx = embedding[:, 0]
+            yy = embedding[:, 1]
+
+            for i in range(2):
+                ax.scatter(xx[tag == i], yy[tag == i],
+                           color=cm.bwr(i/1.), s=10)
 
             ax.xaxis.set_major_formatter(NullFormatter())
             ax.yaxis.set_major_formatter(NullFormatter())

@@ -13,8 +13,8 @@ from visualization import *
 
 ''' Parameters '''
 batch_size = 100
-total_epoch = 20
-feature_dim = 100  # feature dimension, output size of feature extractor
+total_epoch = 200
+feature_dim = 30  # feature dimension, output size of feature extractor
 d_ratio = 3  # training time of discriminator in an iteration
 c_ratio = 1  # training time of classifier in an iteration
 gamma = 10  # parameter for gradient penalty
@@ -24,8 +24,8 @@ save_interval = 2
 
 ''' Model Components '''
 # move all networks to GPU
-source_extractor = Autoencoder(encoded_dim=feature_dim).cuda()
-target_extractor = Autoencoder(encoded_dim=feature_dim).cuda()
+source_extractor = Extractor(encoded_dim=feature_dim).cuda()
+target_extractor = Extractor(encoded_dim=feature_dim).cuda()
 relater = Relavance(feature_dim).cuda()
 classifier = Classifier(feature_dim).cuda()
 discriminator = Discriminator(feature_dim).cuda()
@@ -54,14 +54,16 @@ source_loader = torch.utils.data.DataLoader(datasets.MNIST(
         transforms.ToTensor()
     ])), batch_size=batch_size, shuffle=True)
 
-target_loader = torch.utils.data.DataLoader(MNISTM(
+target_loader = torch.utils.data.DataLoader(USPS(
     transform=transforms.Compose([
         transforms.Resize(28),
         transforms.ToTensor()
     ])), batch_size=batch_size, shuffle=True)
 
 
-model = WADA(source_extractor, target_extractor, classifier, relater, discriminator, source_loader, target_loader, total_epoch=100, feature_dim=feature_dim, num_classes=10)
-model.train()
-model.save_model()
-model.visualize_by_label(dim=2)
+model = WADA(source_extractor, target_extractor, classifier, relater, discriminator, source_loader, target_loader, total_epoch=total_epoch, feature_dim=feature_dim, num_classes=10)
+#model.train()
+#model.save_model()
+#model.visualize_by_label(dim=2)
+model.visualize_by_domain(dim=2)
+#model.load_model()
