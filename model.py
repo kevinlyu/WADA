@@ -2,9 +2,6 @@ import torch
 import torchvision
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.autograd import Variable
-from torch.utils.data import DataLoader
-from torchvision import transforms
 from torch.autograd import grad
 from sklearn.manifold import TSNE
 from mpl_toolkits.mplot3d import Axes3D
@@ -105,7 +102,7 @@ class Autoencoder(nn.Module):
                       1, kernel_size=3, padding=1),
             nn.LeakyReLU(self.lrelu_slope),
 
-            nn.AvgPool2d(kernel_size=2, padding=0),
+            nn.MaxPool2d(kernel_size=2, padding=0),
             nn.Conv2d(self.in_channels*1, self.in_channels *
                       2, kernel_size=3, padding=1),
             nn.LeakyReLU(self.lrelu_slope),
@@ -114,7 +111,7 @@ class Autoencoder(nn.Module):
                       2, kernel_size=3, padding=1),
             nn.LeakyReLU(self.lrelu_slope),
 
-            nn.AvgPool2d(kernel_size=2, padding=0),
+            nn.MaxPool2d(kernel_size=2, padding=0),
             nn.Conv2d(self.in_channels*2, self.in_channels *
                       4, kernel_size=3, padding=1),
             nn.LeakyReLU(self.lrelu_slope),
@@ -123,7 +120,7 @@ class Autoencoder(nn.Module):
                       4, kernel_size=3, padding=1),
             nn.LeakyReLU(self.lrelu_slope),
 
-            nn.AvgPool2d(kernel_size=2, padding=1)
+            nn.MaxPool2d(kernel_size=2, padding=1)
         )
 
         self.encoder_fc = nn.Sequential(
@@ -297,9 +294,9 @@ class WADA:
         """ Optimizers """
         self.c_opt = torch.optim.Adam([{"params": self.src_extractor.parameters()},
                                        {"params": self.tar_extractor.parameters()},
-                                       {"params": self.classifier.parameters()}], lr=1e-3)
-        self.r_opt = torch.optim.Adam(self.relater.parameters(), lr=1e-3)
-        self.d_opt = torch.optim.Adam(self.discriminator.parameters(), lr=1e-5)
+                                       {"params": self.classifier.parameters()}], lr=1e-4)
+        self.r_opt = torch.optim.Adam(self.relater.parameters(), lr=1e-4)
+        self.d_opt = torch.optim.Adam(self.discriminator.parameters(), lr=1e-6)
 
     def train(self):
         """ Train WADA """
@@ -325,22 +322,26 @@ class WADA:
                 """ Train Classifier """
                 self.c_opt.zero_grad()
 
-                _, src_z = self.src_extractor(src_data)
-                _, tar_z = self.tar_extractor(tar_data)
+                src_rec, src_z = self.src_extractor(src_data)
+                tar_rec, tar_z = self.src_extractor(tar_data)
 
+                l1_src = F.l1_loss(src_rec, src_data)
+                l1_tar = F.l1_loss(tar_rec, tar_data)
+                bce_src = F.binary_cross_entropy(src_rec, src_data)
+                bce_tar = F.binary_cross_entropy(tar_rec, tar_data)
                 w2_src = self.weight_swd * \
                     sliced_wasserstein_distance(
                         src_z, embedding_dim=src_z.shape[1]).cuda()
                 w2_tar = self.weight_swd * \
                     sliced_wasserstein_distance(
                         tar_z, embedding_dim=tar_z.shape[1]).cuda()
-                w_z = src_z.mean()-tar_z.mean()
+                w_z = (src_z.mean()-tar_z.mean())**2
 
                 pred_label = self.classifier(src_z)
                 c_loss = self.c_criterion(pred_label, src_label)
-                c_loss = c_loss + w2_src + w2_tar + \
-                    self.discriminator(src_z).mean() - \
-                    self.discriminator(tar_z).mean()
+                c_loss = c_loss + w2_src + w2_tar + l1_src+l1_tar+bce_src+bce_tar+10 * \
+                    (self.discriminator(src_z).mean() -
+                     self.discriminator(tar_z).mean())
 
                 c_loss.backward()
                 self.c_opt.step()
@@ -350,7 +351,7 @@ class WADA:
 
                 with torch.no_grad():
                     _, src_z = self.src_extractor(src_data)
-                    _, tar_z = self.tar_extractor(tar_data)
+                    _, tar_z = self.src_extractor(tar_data)
 
                 src_tag = torch.zeros(src_z.size(0)).cuda()
                 src_pred = self.relater(src_z)
@@ -365,12 +366,12 @@ class WADA:
                 self.r_opt.step()
 
                 """ Train Discriminator """
-                for dt in range(3):
+                for dt in range(5):
                     self.d_opt.zero_grad()
 
                     with torch.no_grad():
                         _, src_z = self.src_extractor(src_data)
-                        _, tar_z = self.tar_extractor(tar_data)
+                        _, tar_z = self.src_extractor(tar_data)
 
                         src_r = self.relater(src_z)
                         tar_r = self.relater(tar_z)
@@ -380,7 +381,7 @@ class WADA:
                     d_src = self.discriminator(src_z)
                     d_tar = self.discriminator(tar_z)
 
-                    w2_loss = d_src.mean()-d_tar.mean()
+                    w2_loss = (d_src.mean()-d_tar.mean())**2
                     d_loss = -w2_loss + self.gamma * gp
 
                     d_loss.backward()
@@ -428,9 +429,36 @@ class WADA:
     def visualize_by_label(self, dim=2, title="t-SNE", file_name="t-SNE.pdf", save_root="./saved_model/"):
         print("t-SNE processing")
 
+        self.src_extractor.cpu()
+        self.tar_extractor.cpu()
+
         self.src_extractor.eval()
         self.tar_extractor.eval()
 
+        src_data = torch.FloatTensor()
+        src_label = torch.LongTensor()
+
+        for index, src in enumerate(self.src_loader):
+            data, label = src
+            src_data = torch.cat((src_data, data))
+            src_label = torch.cat((src_label, label))
+
+        tar_data = torch.FloatTensor()
+        tar_label = torch.LongTensor()
+
+        for index, tar in enumerate(self.tar_loader):
+            data, label = tar
+            tar_data = torch.cat((tar_data, data))
+            tar_label = torch.cat((tar_label, label))
+
+        if src_data.shape[1] != 3:
+            src_data = src_data.expand(
+                src_data.shape[0], 3, self.img_size, self.img_size)
+
+        src_data, src_label = src_data[0:1000], src_label[0:1000]
+        tar_data, tar_label = tar_data[0:1000], tar_label[0:1000]
+
+        '''
         iterator = iter(self.src_loader)
         src_data, src_label = iterator.next()
         src_data, src_label = src_data.cuda(), src_label.cuda()
@@ -442,14 +470,15 @@ class WADA:
         iterator = iter(self.tar_loader)
         tar_data, tar_label = iterator.next()
         tar_data, tar_label = tar_data.cuda(), tar_label.cuda()
-
+        '''
+        
         _, src_z = self.src_extractor(src_data)
-        _, tar_z = self.tar_extractor(tar_data)
+        _, tar_z = self.src_extractor(tar_data)
 
         data = np.concatenate(
-            (src_z.cpu().detach().numpy(), tar_z.cpu().detach().numpy()))
+            (src_z.detach().numpy(), tar_z.detach().numpy()))
         label = np.concatenate(
-            (src_label.cpu().numpy(), tar_label.cpu().numpy()))
+            (src_label.numpy(), tar_label.numpy()))
 
         start_time = time.time()
         tsne = TSNE(n_components=dim, verbose=1,
@@ -460,7 +489,7 @@ class WADA:
         embedding_max, embedding_min = np.max(
             embedding, 0), np.min(embedding, 0)
         embedding = (embedding-embedding_min)/(embedding_max-embedding_min)
-
+        print("t-SNE spent {} secs".format(time.time()-start_time))
         print("Plotting t-SNE")
 
         ''' Plot according given dimension '''

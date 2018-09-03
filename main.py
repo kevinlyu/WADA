@@ -12,9 +12,9 @@ from data_loaders import *
 from visualization import *
 
 ''' Parameters '''
-batch_size = 250
-total_epoch = 1
-feature_dim = 50  # feature dimension, output size of feature extractor
+batch_size = 100
+total_epoch = 20
+feature_dim = 100  # feature dimension, output size of feature extractor
 d_ratio = 3  # training time of discriminator in an iteration
 c_ratio = 1  # training time of classifier in an iteration
 gamma = 10  # parameter for gradient penalty
