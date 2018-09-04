@@ -13,7 +13,7 @@ from visualization import *
 
 ''' Parameters '''
 batch_size = 100
-total_epoch = 200
+total_epoch = 20
 feature_dim = 30  # feature dimension, output size of feature extractor
 d_ratio = 3  # training time of discriminator in an iteration
 c_ratio = 1  # training time of classifier in an iteration
@@ -48,9 +48,16 @@ d_optimizer = torch.optim.Adam(discriminator.parameters(), lr=1e-5)
 
 
 ''' Dataloaders '''
+'''
 source_loader = torch.utils.data.DataLoader(datasets.MNIST(
-    "../datasetmnist/", train=True, download=True,
+    "../dataset/mnist/", train=True, download=True,
     transform=transforms.Compose([
+        transforms.ToTensor()
+    ])), batch_size=batch_size, shuffle=True)
+'''
+source_loader = torch.utils.data.DataLoader(MNISTM(
+    transform=transforms.Compose([
+        transforms.Resize(28),
         transforms.ToTensor()
     ])), batch_size=batch_size, shuffle=True)
 
@@ -62,8 +69,10 @@ target_loader = torch.utils.data.DataLoader(USPS(
 
 
 model = WADA(source_extractor, target_extractor, classifier, relater, discriminator, source_loader, target_loader, total_epoch=total_epoch, feature_dim=feature_dim, num_classes=10)
-#model.train()
-#model.save_model()
+model.train()
+model.save_model()
+model.visualize(dim=2)
+model.visualize(dim=3)
 #model.visualize_by_label(dim=2)
-model.visualize_by_domain(dim=2)
+#model.visualize_by_domain(dim=2)
 #model.load_model()

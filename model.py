@@ -362,7 +362,7 @@ class WADA:
                 '''
 
                 src_z = self.src_extractor(src_data)
-                tar_z = self.tar_extractor(tar_data)
+                tar_z = self.src_extractor(tar_data)
 
                 '''
                 l1_src = F.l1_loss(src_rec, src_data)
@@ -400,7 +400,7 @@ class WADA:
 
                 with torch.no_grad():
                     src_z = self.src_extractor(src_data)
-                    tar_z = self.tar_extractor(tar_data)
+                    tar_z = self.src_extractor(tar_data)
 
                 src_tag = torch.zeros(src_z.size(0)).cuda()
                 src_pred = self.relater(src_z)
@@ -424,7 +424,7 @@ class WADA:
                         _, tar_z = self.tar_extractor(tar_data)
                         '''
                         src_z = self.src_extractor(src_data)
-                        tar_z = self.tar_extractor(tar_data)
+                        tar_z = self.src_extractor(tar_data)
 
                         src_r = self.relater(src_z)
                         tar_r = self.relater(tar_z)
@@ -479,9 +479,7 @@ class WADA:
         self.discriminator.load_state_dict(
             torch.load(load_dir, "WADA" + "_D.pkl"))
 
-    def visualize_by_label(self, dim=2, title="t-SNE", file_name="t-SNE.pdf", save_root="./saved_model/"):
-        print("t-SNE processing")
-
+    def visualize(self, dim):
         self.src_extractor.cpu()
         self.tar_extractor.cpu()
 
@@ -519,7 +517,6 @@ class WADA:
         label = np.concatenate(
             (src_label.numpy(), tar_label.numpy()))
 
-        start_time = time.time()
         tsne = TSNE(n_components=dim, verbose=1,
                     init="pca", perplexity=40, n_iter=3000)
 
@@ -529,11 +526,50 @@ class WADA:
             embedding, 0), np.min(embedding, 0)
         embedding = (embedding-embedding_min)/(embedding_max-embedding_min)
 
-        print("t-SNE spent {} secs".format(time.time()-start_time))
-        print("Plotting t-SNE")
+        if dim == 2:
+            fig = plt.figure()
+            ax = fig.add_subplot(111)
+            colors = cm.rainbow(np.linspace(0.0, 1.0, self.num_classes))
 
-        ''' Plot according given dimension '''
-        if dim == 3:
+            xx = embedding[:, 0]
+            yy = embedding[:, 1]
+
+            for i in range(self.num_classes):
+                ax.scatter(xx[label == i], yy[label == i],
+                           color=colors[i], s=10)
+
+            ax.xaxis.set_major_formatter(NullFormatter())
+            ax.yaxis.set_major_formatter(NullFormatter())
+            plt.axis('tight')
+            plt.legend(loc='best', scatterpoints=1, fontsize=5)
+            plt.savefig("TSNE_Label_2D.pdf", format='pdf', dpi=600)
+            plt.show()
+            plt.close("all")
+
+            src_tag = torch.zeros(src_z.size(0))
+            tar_tag = torch.ones(tar_z.size(0))
+            tag = np.concatenate((src_tag.numpy(), tar_tag.numpy()))
+
+            fig = plt.figure()
+            ax = fig.add_subplot(111)
+            colors = cm.rainbow(np.linspace(0.0, 1.0, self.num_classes))
+
+            xx = embedding[:, 0]
+            yy = embedding[:, 1]
+
+            for i in range(2):
+                ax.scatter(xx[tag == i], yy[tag == i],
+                           color=cm.bwr(i/1.), s=10)
+
+            ax.xaxis.set_major_formatter(NullFormatter())
+            ax.yaxis.set_major_formatter(NullFormatter())
+            plt.axis('tight')
+            plt.legend(loc='best', scatterpoints=1, fontsize=5)
+            plt.savefig("TSNE_Domain_2D.pdf", format='pdf', dpi=600)
+            plt.show()
+            plt.close("all")
+
+        elif dim == 3:
             fig = plt.figure()
             ax = fig.add_subplot(111, projection="3d")
             colors = cm.rainbow(np.linspace(0.0, 1.0, self.num_classes))
@@ -551,82 +587,14 @@ class WADA:
             ax.zaxis.set_major_formatter(NullFormatter())
             plt.axis('tight')
             plt.legend(loc='best', scatterpoints=1, fontsize=5)
-            plt.savefig(file_name, format='pdf', dpi=600)
+            plt.savefig("TSNE_Label_3D.pdf", format='pdf', dpi=600)
             plt.show()
+            plt.close("all")
 
-        elif dim == 2:
+            src_tag = torch.zeros(src_z.size(0))
+            tar_tag = torch.ones(tar_z.size(0))
+            tag = np.concatenate((src_tag.numpy(), tar_tag.numpy()))
 
-            fig = plt.figure()
-            ax = fig.add_subplot(111)
-            colors = cm.rainbow(np.linspace(0.0, 1.0, self.num_classes))
-
-            xx = embedding[:, 0]
-            yy = embedding[:, 1]
-
-            for i in range(self.num_classes):
-                ax.scatter(xx[label == i], yy[label == i],
-                           color=colors[i], s=10)
-
-            ax.xaxis.set_major_formatter(NullFormatter())
-            ax.yaxis.set_major_formatter(NullFormatter())
-            plt.axis('tight')
-            plt.legend(loc='best', scatterpoints=1, fontsize=5)
-            plt.savefig(file_name, format='pdf', dpi=600)
-            plt.show()
-
-    def visualize_by_domain(self, dim=2, title="t-SNE", file_name="t-SNE.pdf", save_root="./saved_model/"):
-        print("t-SNE processing")
-        self.src_extractor.cpu()
-        self.tar_extractor.cpu()
-
-        self.src_extractor.eval()
-        self.tar_extractor.eval()
-
-        src_data = torch.FloatTensor()
-
-        for index, src in enumerate(self.src_loader):
-            data, label = src
-            src_data = torch.cat((src_data, data))
-
-        tar_data = torch.FloatTensor()
-
-        for index, tar in enumerate(self.tar_loader):
-            data, label = tar
-            tar_data = torch.cat((tar_data, data))
-
-        if src_data.shape[1] != 3:
-            src_data = src_data.expand(
-                src_data.shape[0], 3, self.img_size, self.img_size)
-
-        src_data = src_data[0:1000]
-        tar_data = tar_data[0:1000]
-
-        src_z = self.src_extractor(src_data)
-        tar_z = self.src_extractor(tar_data)
-
-        data = np.concatenate(
-            (src_z.detach().numpy(), tar_z.detach().numpy()))
-
-        src_tag = torch.ones(src_z.size(0))
-        tar_tag = torch.zeros(tar_z.size(0))
-
-        tag = np.concatenate((src_tag.numpy(), tar_tag.numpy()))
-
-        start_time = time.time()
-        tsne = TSNE(n_components=dim, verbose=1,
-                    init="pca", perplexity=40, n_iter=3000)
-
-        embedding = tsne.fit_transform(data)
-
-        embedding_max, embedding_min = np.max(
-            embedding, 0), np.min(embedding, 0)
-        embedding = (embedding-embedding_min)/(embedding_max-embedding_min)
-
-        print("t-SNE spent {} secs".format(time.time()-start_time))
-        print("Plotting t-SNE")
-
-        ''' Plot according given dimension '''
-        if dim == 3:
             fig = plt.figure()
             ax = fig.add_subplot(111, projection="3d")
 
@@ -643,24 +611,6 @@ class WADA:
             ax.zaxis.set_major_formatter(NullFormatter())
             plt.axis('tight')
             plt.legend(loc='best', scatterpoints=1, fontsize=5)
-            plt.savefig(file_name, format='pdf', dpi=600)
+            plt.savefig("TSNE_Domain_3D.pdf", format='pdf', dpi=600)
             plt.show()
-
-        elif dim == 2:
-
-            fig = plt.figure()
-            ax = fig.add_subplot(111)
-
-            xx = embedding[:, 0]
-            yy = embedding[:, 1]
-
-            for i in range(2):
-                ax.scatter(xx[tag == i], yy[tag == i],
-                           color=cm.bwr(i/1.), s=10)
-
-            ax.xaxis.set_major_formatter(NullFormatter())
-            ax.yaxis.set_major_formatter(NullFormatter())
-            plt.axis('tight')
-            plt.legend(loc='best', scatterpoints=1, fontsize=5)
-            plt.savefig(file_name, format='pdf', dpi=600)
-            plt.show()
+            plt.close("all")
